@@ -366,8 +366,6 @@ def send_welcome(chat_id, user_id, user_name):
         welcome += ("/upload - Mod yuklash 📤\n/admin - Admin qo'shish 👤\n"
                     "/broadcast - Xabar tarqatish 📢\n/panel - Admin panel 🛠️\n")
     welcome += "\n🌐 Kanal: @%s" % config.CHANNEL_USERNAME
-    if config.WEBAPP_URL:
-        welcome += "\n🌐 <b>Sayt:</b> %s" % config.WEBAPP_URL
     tg.send_message(chat_id, welcome, main_keyboard(storage.is_admin(user_id)))
 
 
