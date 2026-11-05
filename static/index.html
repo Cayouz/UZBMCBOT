@@ -1,0 +1,1437 @@
+<!doctype html>
+<html lang="uz" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0d0b">
+<meta name="color-scheme" content="dark light">
+<title>MODHUB — Minecraft modlar</title>
+<style>
+:root{
+  --r:18px;
+  --dark-bg:#0a0d0b; --dark-card:#141a16; --dark-card2:#1c241e; --dark-text:#e9f1e9;
+  --dark-muted:#8b9c90; --dark-line:#243029; --dark-accent:#3ddc84;
+  --light-bg:#f2f6f0; --light-card:#ffffff; --light-card2:#e9f0e7; --light-text:#0f1a13;
+  --light-muted:#5c6f62; --light-line:#dce7dc; --light-accent:#0f9d58;
+}
+html[data-theme="dark"]{
+  --bg:var(--dark-bg); --card:var(--dark-card); --card2:var(--dark-card2);
+  --text:var(--dark-text); --muted:var(--dark-muted); --line:var(--dark-line);
+  --accent:var(--dark-accent); --accent-ink:#04150b;
+  --danger:#ff6b6b; --gold:#ffc65c;
+}
+html[data-theme="light"]{
+  --bg:var(--light-bg); --card:var(--light-card); --card2:var(--light-card2);
+  --text:var(--light-text); --muted:var(--light-muted); --line:var(--light-line);
+  --accent:var(--light-accent); --accent-ink:#ffffff;
+  --danger:#d93a3a; --gold:#b7791f;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;
+  padding-bottom:calc(80px + env(safe-area-inset-bottom));
+  overflow-x:hidden;
+}
+button,input,textarea,select{font-family:inherit;font-size:15px;color:inherit}
+button{cursor:pointer;border:0;background:none}
+a{color:var(--accent);text-decoration:none}
+img{display:block;max-width:100%}
+h1,h2,h3,p{margin:0}
+.hide{display:none!important}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.row{display:flex;align-items:center;gap:10px}
+.between{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.wrap{flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+.center{text-align:center}
+
+#bg{position:fixed;inset:0;z-index:0;background-size:cover;background-position:center 42%;
+  opacity:0;transition:opacity .6s ease;transform:scale(1.03)}
+body.has-bg #bg{opacity:.72}
+#bgveil{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:linear-gradient(180deg,rgba(10,13,11,.18) 0%,rgba(10,13,11,.64) 46%,var(--bg) 94%)}
+html[data-theme="light"] #bgveil{background:linear-gradient(180deg,rgba(242,246,240,.20) 0%,rgba(242,246,240,.72) 46%,var(--bg) 94%)}
+body.no-bg #bgveil{background:var(--bg)}
+
+.screen{position:relative;z-index:1;display:none;padding:14px 14px 24px;animation:fade .25s ease}
+.screen.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.header{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;
+  gap:12px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
+  background:color-mix(in srgb,var(--bg) 78%,transparent);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand-mark{width:40px;height:40px;border-radius:13px;flex:0 0 auto;display:grid;place-items:center;
+  font-size:21px;background:linear-gradient(145deg,var(--accent),#127a44);
+  box-shadow:0 10px 24px -12px var(--accent)}
+.brand h1{font-size:17px;letter-spacing:.6px;font-weight:800;line-height:1.1}
+.brand small{display:block;font-size:10.5px;color:var(--muted);letter-spacing:.3px;margin-top:2px}
+.hdr-btn{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:18px;
+  background:var(--card);border:1px solid var(--line);color:var(--text)}
+
+#splash{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:var(--bg);
+  transition:opacity .35s ease}
+#splash.out{opacity:0;pointer-events:none}
+.splash-in{display:flex;flex-direction:column;align-items:center;gap:16px}
+.splash-logo{width:84px;height:84px;border-radius:24px;display:grid;place-items:center;font-size:42px;
+  background:linear-gradient(145deg,var(--accent),#0f7a45);animation:pulse 1.6s ease-in-out infinite;
+  box-shadow:0 20px 60px -20px var(--accent)}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.splash-t{font-weight:800;letter-spacing:2px;font-size:18px}
+.splash-s{font-size:12px;color:var(--muted)}
+
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;gap:4px;
+  padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+  background:color-mix(in srgb,var(--card) 94%,transparent);
+  backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border-top:1px solid var(--line)}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 0;
+  border-radius:14px;color:var(--muted);font-size:10.5px;font-weight:600;transition:color .2s}
+.nav button .ni{font-size:21px;line-height:1;filter:grayscale(.55);transition:transform .18s,filter .18s}
+.nav button.active{color:var(--accent)}
+.nav button.active .ni{filter:none;transform:translateY(-1px)}
+.nav button:active{background:var(--card2)}
+
+input[type=text],input[type=number],input[type=url],textarea,select{
+  width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);
+  border-radius:14px;padding:12px 13px;outline:none;transition:border-color .15s,box-shadow .15s}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+textarea{resize:vertical;min-height:90px}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:36px}
+
+.field{display:flex;flex-direction:column;gap:7px;margin-bottom:13px}
+.field>label{font-size:11px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;color:var(--muted)}
+.hint{font-size:11.5px;color:var(--muted)}
+.file-in{width:100%;background:var(--card2);border:1px dashed var(--line);border-radius:14px;padding:12px;font-size:12.5px}
+.file-in::file-selector-button{background:var(--accent);color:var(--accent-ink);border:0;border-radius:9px;
+  padding:8px 12px;font-weight:700;margin-right:10px;font-family:inherit}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);
+  background:var(--card2);color:var(--text);border-radius:14px;padding:11px 15px;font-weight:700;font-size:14px;
+  transition:transform .12s,filter .15s}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),#0f8a4d);border-color:transparent;color:var(--accent-ink);
+  box-shadow:0 10px 26px -14px var(--accent)}
+.btn.ghost{background:transparent}
+.btn.danger{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger);
+  border-color:color-mix(in srgb,var(--danger) 35%,transparent)}
+.btn.block{width:100%}
+.btn.sm{padding:8px 11px;font-size:12.5px;border-radius:11px}
+.btn:disabled{opacity:.6;pointer-events:none}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px}
+.card + .card{margin-top:12px}
+.card h3{font-size:14px;margin-bottom:12px;letter-spacing:.2px}
+.section-title{display:flex;align-items:center;justify-content:space-between;margin:18px 4px 10px}
+.section-title h2{font-size:15px;font-weight:800;letter-spacing:.2px}
+.section-title .count{font-size:11.5px;color:var(--muted);font-weight:600}
+
+.search{position:relative;margin-bottom:12px}
+.search input{padding-left:40px;background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(10px)}
+.search .ico{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:15px;opacity:.7}
+
+.cats{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:9px 13px;border-radius:999px;
+  background:color-mix(in srgb,var(--card) 90%,transparent);border:1px solid var(--line);
+  color:var(--muted);font-size:12.5px;font-weight:600;white-space:nowrap;transition:.15s}
+.chip .ci{font-size:14px}
+.chip.active{background:var(--accent);border-color:transparent;color:var(--accent-ink);
+  box-shadow:0 8px 20px -12px var(--accent);font-weight:800}
+.chip:active{transform:scale(.96)}
+
+.seg{display:flex;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:4px;gap:4px}
+.seg button{flex:1;padding:8px 6px;border-radius:10px;font-size:12.5px;font-weight:700;color:var(--muted)}
+.seg button.active{background:var(--card);color:var(--text);box-shadow:0 3px 10px rgba(0,0,0,.18)}
+
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.mod-card{position:relative;border-radius:18px;overflow:hidden;background:var(--card);
+  border:1px solid var(--line);transition:transform .14s,box-shadow .2s;text-align:left;padding:0;display:block}
+.mod-card:active{transform:scale(.975)}
+.mod-card .cover{width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--card2)}
+.mod-card .ph{width:100%;aspect-ratio:4/3;display:grid;place-items:center;font-size:34px;
+  background:radial-gradient(circle at 30% 20%,#1f3a26,#0e1711)}
+html[data-theme="light"] .mod-card .ph{background:radial-gradient(circle at 30% 20%,#d9ecdb,#eef5ec)}
+.mod-card .body{padding:10px 11px 12px}
+.mod-card .name{font-size:13px;font-weight:700;line-height:1.28;display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical;overflow:hidden;min-height:33px}
+.mod-card .meta{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:7px;
+  font-size:10.5px;color:var(--muted);font-weight:600}
+.mod-card .meta .cat{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge-save{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;
+  display:grid;place-items:center;font-size:13px;background:rgba(8,12,9,.62);backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.12)}
+.dl-pill{position:absolute;top:8px;left:8px;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;
+  background:rgba(8,12,9,.62);color:#e8f4ea;backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.1)}
+.empty{padding:44px 20px;text-align:center;color:var(--muted)}
+.empty .e{font-size:44px;margin-bottom:10px}
+.empty h3{color:var(--text);margin-bottom:6px}
+
+.sheet-wrap{position:fixed;inset:0;z-index:80;background:var(--bg);overflow-y:auto;
+  transform:translateY(100%);transition:transform .3s cubic-bezier(.22,.85,.3,1);-webkit-overflow-scrolling:touch}
+.sheet-wrap.open{transform:none}
+.sheet-top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;
+  padding:calc(10px + env(safe-area-inset-top)) 12px 10px;
+  background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}
+.sheet-top .back{width:38px;height:38px;border-radius:12px;background:var(--card);border:1px solid var(--line);
+  display:grid;place-items:center;font-size:17px}
+.sheet-top .ttl{font-weight:800;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gallery{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;background:#07100a}
+.gallery::-webkit-scrollbar{display:none}
+.gallery img{flex:0 0 100%;width:100%;height:min(52vh,430px);object-fit:cover;scroll-snap-align:center;background:#07100a}
+.dots{display:flex;justify-content:center;gap:6px;padding:10px 0 0}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--line);transition:.2s}
+.dots i.on{background:var(--accent);width:18px;border-radius:999px}
+.detail{padding:16px 16px 40px}
+.detail h2{font-size:20px;font-weight:800;line-height:1.25;letter-spacing:-.2px}
+.tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.tag{font-size:11px;font-weight:700;padding:5px 10px;border-radius:999px;background:var(--card2);
+  border:1px solid var(--line);color:var(--muted)}
+.tag.accent{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,transparent);
+  background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.desc{margin-top:14px;color:var(--text);opacity:.9;font-size:14px;white-space:pre-wrap;word-break:break-word}
+.actions{display:grid;grid-template-columns:1fr auto auto;gap:9px;margin-top:16px}
+.files{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.file-row{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:14px;background:var(--card);
+  border:1px solid var(--line)}
+.file-row .fi{font-size:20px}
+.file-row .fn{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comments{margin-top:18px}
+.comment{padding:10px 0;border-bottom:1px solid var(--line)}
+.comment:last-child{border-bottom:0}
+.comment .who{font-size:12px;font-weight:700;color:var(--accent)}
+.comment .when{font-size:10.5px;color:var(--muted);margin-left:6px;font-weight:500}
+.comment .txt{font-size:13.5px;margin-top:3px;word-break:break-word;white-space:pre-wrap}
+.comment-box{display:flex;gap:8px;margin-top:12px}
+.comment-box input{flex:1}
+.comment-box button{width:46px;height:46px;border-radius:14px;background:var(--accent);color:var(--accent-ink);
+  font-size:18px;flex:0 0 auto}
+
+.gate{padding:26px 20px;text-align:center;margin-top:8vh}
+.gate .ge{font-size:54px;margin-bottom:14px}
+.gate h2{font-size:20px;margin-bottom:8px}
+.gate p{color:var(--muted);font-size:13.5px;margin-bottom:16px}
+.gate .ch{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:14px;
+  background:var(--card2);border:1px solid var(--line);margin-bottom:8px;font-weight:700;font-size:13px;color:var(--text)}
+
+.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;
+  border-bottom:1px solid var(--line)}
+.toggle-row:last-child{border-bottom:0;padding-bottom:2px}
+.toggle-row .tl{font-size:13.5px;font-weight:600}
+.toggle-row .ts{font-size:11.5px;color:var(--muted);margin-top:1px}
+.switch{width:50px;height:29px;border-radius:999px;background:var(--card2);border:1px solid var(--line);
+  position:relative;flex:0 0 auto;transition:.2s}
+.switch:after{content:"";position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;
+  background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.25);transition:.2s}
+.switch.on{background:var(--accent);border-color:transparent}
+.switch.on:after{left:24px}
+
+.profile-head{display:flex;flex-direction:column;align-items:center;padding:12px 0 4px}
+.avatar-wrap{position:relative;width:98px;height:98px}
+.avatar{width:98px;height:98px;border-radius:50%;object-fit:cover;border:3px solid var(--accent);
+  background:var(--card2);display:grid;place-items:center;font-size:38px;overflow:hidden}
+.cam{position:absolute;right:-1px;bottom:0;width:32px;height:32px;border-radius:50%;
+  background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:15px;
+  border:3px solid var(--bg);box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.profile-name{font-size:19px;font-weight:800;margin-top:12px}
+.profile-un{font-size:12.5px;color:var(--muted);margin-top:2px}
+.id-pill{font-size:11.5px;color:var(--muted);background:var(--card);border:1px solid var(--line);
+  border-radius:999px;padding:5px 12px;margin-top:10px;font-variant-numeric:tabular-nums}
+.mini-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:14px}
+.mini-stat{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:11px 8px;text-align:center}
+.mini-stat .v{font-size:18px;font-weight:800}
+.mini-stat .l{font-size:10px;color:var(--muted);margin-top:2px;font-weight:600}
+.ref-box{background:var(--card2);border:1px dashed var(--line);border-radius:13px;padding:11px 12px;
+  font-size:11.5px;word-break:break-all;color:var(--muted);margin-top:10px}
+.list-row{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--line)}
+.list-row:last-child{border-bottom:0}
+.list-row .lr-ico{width:36px;height:36px;border-radius:11px;background:var(--card2);display:grid;
+  place-items:center;font-size:16px;flex:0 0 auto}
+.list-row .lr-main{flex:1;min-width:0}
+.list-row .lr-t{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list-row .lr-s{font-size:11px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:13px 14px;position:relative;overflow:hidden}
+.stat:before{content:"";position:absolute;inset:0;background:radial-gradient(120px 60px at 100% 0,color-mix(in srgb,var(--accent) 14%,transparent),transparent 70%);pointer-events:none}
+.stat .sv{font-size:25px;font-weight:800;letter-spacing:-.6px;line-height:1.1}
+.stat .sl{font-size:10.5px;color:var(--muted);font-weight:700;margin-top:3px;text-transform:uppercase;letter-spacing:.3px}
+.stat .ss{font-size:10px;color:var(--muted);margin-top:2px}
+.stat.live .sv{color:var(--accent)}
+.quick{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+.quick button,.quick a{display:flex;align-items:center;gap:9px;padding:12px;border-radius:15px;background:var(--card);
+  border:1px solid var(--line);font-weight:700;font-size:12.5px;text-align:left;color:var(--text);text-decoration:none}
+.quick button .qi,.quick a .qi{font-size:18px}
+.admin-mod{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.admin-mod:last-child{border-bottom:0}
+.admin-mod img,.admin-mod .mph{width:48px;height:48px;border-radius:12px;object-fit:cover;background:var(--card2);
+  display:grid;place-items:center;font-size:20px;flex:0 0 auto}
+.admin-mod .am-main{flex:1;min-width:0}
+.admin-mod .am-t{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.admin-mod .am-s{font-size:10.5px;color:var(--muted);margin-top:2px}
+.icon-btns{display:flex;gap:5px}
+.icon-btn{width:32px;height:32px;border-radius:10px;background:var(--card2);border:1px solid var(--line);
+  display:grid;place-items:center;font-size:13px}
+
+.modal-wrap{position:fixed;inset:0;z-index:120;display:flex;align-items:flex-end;justify-content:center;
+  background:rgba(0,0,0,.55);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-wrap.open{opacity:1;pointer-events:auto}
+.modal{width:100%;max-width:560px;max-height:90vh;overflow-y:auto;background:var(--card);
+  border:1px solid var(--line);border-radius:24px 24px 0 0;padding:18px 16px calc(22px + env(safe-area-inset-bottom));
+  transform:translateY(30px);transition:transform .25s cubic-bezier(.22,.85,.3,1)}
+.modal-wrap.open .modal{transform:none}
+.modal .m-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.modal .m-head h3{font-size:16px;font-weight:800}
+.modal .m-close{width:32px;height:32px;border-radius:10px;background:var(--card2);display:grid;place-items:center;font-size:15px}
+.modal .btn.block{margin-top:6px}
+.form-actions{display:flex;gap:9px;margin-top:14px}
+.form-actions .btn{flex:1}
+.preview{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.preview img{width:68px;height:68px;object-fit:cover;border-radius:11px;border:1px solid var(--line)}
+.checkline{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;margin:2px 0 12px}
+.checkline input{width:18px;height:18px;accent-color:var(--accent)}
+.divider{height:1px;background:var(--line);margin:14px 0}
+.list-scroll{max-height:52vh;overflow-y:auto;margin:0 -4px;padding:0 4px}
+
+#toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));z-index:300;
+  transform:translateX(-50%) translateY(16px);background:#1d2a21;color:#ebf5ec;padding:10px 17px;
+  border-radius:999px;font-size:12.5px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;
+  max-width:88vw;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.08)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{background:#3a1a1a;color:#ffd9d9;border-color:rgba(255,120,120,.25)}
+
+.foot{padding:22px 0 8px;text-align:center;font-size:10.5px;color:var(--muted);opacity:.8}
+.spinner{width:16px;height:16px;border:2px solid rgba(0,0,0,.2);border-top-color:currentColor;
+  border-radius:50%;display:inline-block;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(min-width:620px){
+  .screen{max-width:640px;margin:0 auto}
+  .nav{max-width:640px;margin:0 auto;border-radius:22px 22px 0 0;border:1px solid var(--line);border-bottom:0}
+  .header{max-width:640px;margin:0 auto;border-radius:0 0 18px 18px}
+  #bgveil{background:linear-gradient(180deg,rgba(10,13,11,.3),rgba(10,13,11,.75) 50%,var(--bg) 90%)}
+}
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<div id="bgveil"></div>
+
+<div id="splash">
+  <div class="splash-in">
+    <div class="splash-logo">⛏️</div>
+    <div class="splash-t">MODHUB</div>
+    <div class="splash-s">Minecraft modlar dunyosi</div>
+  </div>
+</div>
+
+<header class="header">
+  <div class="brand">
+    <div class="brand-mark">⛏️</div>
+    <div class="grow">
+      <h1 id="hdrTitle">MODHUB</h1>
+      <small id="hdrSub">Minecraft modlar</small>
+    </div>
+  </div>
+  <div class="row" style="gap:7px">
+    <a class="hdr-btn" id="chanBtn" target="_blank" title="Kanal">📣</a>
+    <button class="hdr-btn" data-action="open-support" title="Adminga yozish">💬</button>
+  </div>
+</header>
+
+<main id="app">
+  <section class="screen active" id="screen-mods"></section>
+  <section class="screen" id="screen-settings"></section>
+  <section class="screen" id="screen-profile"></section>
+  <section class="screen" id="screen-admin"></section>
+</main>
+
+<nav class="nav" id="nav"></nav>
+<div class="sheet-wrap" id="sheet"></div>
+<div class="modal-wrap" id="modalWrap"><div class="modal" id="modal"></div></div>
+<div id="toast"></div>
+
+<input type="file" id="avatarInput" accept="image/*" class="hide">
+
+<script>
+(function(){
+"use strict";
+
+var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+var DEV = new URLSearchParams(location.search).get("dev") || "";
+
+var state = {
+  user:null, is_admin:false, subscribed:true, blocked:false,
+  settings:{theme:"dark",sound:true,bg:true},
+  favorites:[], mods:[], categories:[], channels:[],
+  bot_username:"", support:"Cayouz", stats:null,
+  invited_count:0, joined:"",
+  tab:"mods", cat:"all", q:"", sort:"new", mod:null, adminLoaded:false
+};
+
+var $ = function(id){ return document.getElementById(id); };
+var sheet = $("sheet");
+var modalWrap = $("modalWrap");
+var modal = $("modal");
+
+function esc(s){
+  return String(s==null?"":s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+  });
+}
+function fmt(n){
+  n = Number(n||0);
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+function api(path, payload){
+  var body = Object.assign({init_data:(tg && tg.initData) || "", dev_user:DEV}, payload || {});
+  return fetch(path, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)})
+    .then(function(r){ return r.json(); });
+}
+function apiForm(path, fd){
+  fd.append("init_data", (tg && tg.initData) || "");
+  fd.append("dev_user", DEV);
+  return fetch(path, {method:"POST", body:fd}).then(function(r){ return r.json(); });
+}
+var toastTimer = null;
+function toast(msg, isErr){
+  var el = $("toast");
+  el.textContent = msg;
+  el.className = "show" + (isErr ? " err" : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.className = ""; }, 2600);
+}
+function haptic(kind){
+  try{
+    if(!tg || !tg.HapticFeedback) return;
+    if(kind==="ok") tg.HapticFeedback.notificationOccurred("success");
+    else tg.HapticFeedback.impactOccurred(kind||"light");
+  }catch(e){}
+}
+var actx = null;
+function playClick(){
+  if(!state.settings || !state.settings.sound) return;
+  try{
+    if(!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if(actx.state === "suspended") actx.resume();
+    var o = actx.createOscillator(), g = actx.createGain();
+    o.connect(g); g.connect(actx.destination);
+    o.type = "sine"; o.frequency.value = 680;
+    g.gain.value = 0.035;
+    o.frequency.exponentialRampToValueAtTime(430, actx.currentTime + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.11);
+    o.start(); o.stop(actx.currentTime + 0.12);
+  }catch(e){}
+}
+
+/* ---------- theme / background ---------- */
+function applyTheme(theme){
+  document.documentElement.setAttribute("data-theme", theme === "light" ? "light" : "dark");
+  var meta = document.querySelector('meta[name=theme-color]');
+  if(meta) meta.setAttribute("content", theme === "light" ? "#f2f6f0" : "#0a0d0b");
+  try{
+    if(tg && tg.setHeaderColor) tg.setHeaderColor(theme === "light" ? "#f2f6f0" : "#0a0d0b");
+    if(tg && tg.setBackgroundColor) tg.setBackgroundColor(theme === "light" ? "#f2f6f0" : "#0a0d0b");
+  }catch(e){}
+  applyBg(state.settings.bg);
+}
+function applyBg(enabled){
+  var bg = $("bg");
+  bg.style.backgroundImage = "url('/assets/" + (state.settings.theme === "light" ? "sakura-light.jpg" : "sakura-dark.jpg") + "')";
+  document.body.classList.toggle("has-bg", !!enabled);
+  document.body.classList.toggle("no-bg", !enabled);
+}
+
+/* ---------- navigation ---------- */
+var TABS = {
+  mods:{icon:"📦", label:"Modlar", title:"Modlar", sub:"Minecraft modlar dunyosi"},
+  settings:{icon:"⚙️", label:"Sozlamalar", title:"Sozlamalar", sub:"Sayt va obuna"},
+  profile:{icon:"👤", label:"Profil", title:"Profil", sub:"Shaxsiy kabinet"},
+  admin:{icon:"🛠️", label:"Admin", title:"Admin panel", sub:"Boshqaruv markazi"}
+};
+function navItems(){
+  var items = ["mods","settings","profile"];
+  if(state.is_admin) items.push("admin");
+  return items;
+}
+function buildNav(){
+  $("nav").innerHTML = navItems().map(function(k){
+    return '<button data-action="tab" data-tab="' + k + '" class="' + (state.tab===k?"active":"") + '">' +
+      '<span class="ni">' + TABS[k].icon + '</span><span>' + TABS[k].label + '</span></button>';
+  }).join("");
+}
+function setTab(tab){
+  if(tab === "admin" && !state.is_admin) return;
+  state.tab = tab;
+  document.querySelectorAll(".screen").forEach(function(s){ s.classList.remove("active"); });
+  var el = $("screen-" + tab);
+  if(el) el.classList.add("active");
+  document.querySelectorAll('#nav [data-action="tab"]').forEach(function(b){
+    b.classList.toggle("active", b.dataset.tab === tab);
+  });
+  $("hdrTitle").textContent = TABS[tab].title;
+  $("hdrSub").textContent = TABS[tab].sub;
+  if(tab === "mods") renderMods();
+  if(tab === "settings") renderSettings();
+  if(tab === "profile") renderProfile();
+  if(tab === "admin"){ if(state.adminLoaded) renderAdmin(); else loadAdmin(); }
+  window.scrollTo({top:0, behavior:"instant"});
+}
+
+/* ---------- boot ---------- */
+function boot(){
+  try{ if(tg){ tg.ready(); tg.expand(); } }catch(e){}
+  api("/api/init").then(function(r){
+    hideSplash();
+    if(!r || !r.ok){
+      $("screen-mods").innerHTML = '<div class="card gate"><div class="ge">⚠️</div><h2>Kirish xatosi</h2>' +
+        '<p>' + esc((r && r.error) || "Telegram orqali oching") + '</p>' +
+        '<button class="btn primary block" data-action="retry">Qayta urinish</button></div>';
+      return;
+    }
+    if(r.blocked){
+      state.blocked = true;
+      renderBlocked();
+      return;
+    }
+    state.user = r.user;
+    state.is_admin = !!r.is_admin;
+    state.subscribed = !!r.subscribed;
+    state.settings = Object.assign({theme:"dark",sound:true,bg:true}, r.settings || {});
+    state.favorites = r.favorites || [];
+    state.mods = r.mods || [];
+    state.categories = r.categories || [];
+    state.channels = r.channels || [];
+    state.bot_username = r.bot_username || "";
+    state.support = r.support || "Cayouz";
+    state.stats = r.stats || null;
+    state.invited_count = r.invited_count || 0;
+    state.joined = r.joined || "";
+    applyTheme(state.settings.theme);
+    applyBg(state.settings.bg);
+    var ch = $("chanBtn");
+    if(state.channels && state.channels.length){
+      var c = String(state.channels[0]);
+      ch.href = "https://t.me/" + (c.charAt(0)==="@" ? c.slice(1) : c);
+      ch.classList.remove("hide");
+    } else { ch.classList.add("hide"); }
+    buildNav();
+    if(!state.subscribed && !state.is_admin){
+      renderGate();
+      return;
+    }
+    setTab("mods");
+    setInterval(function(){ api("/api/visit").catch(function(){}); }, 60000);
+  }).catch(function(e){
+    hideSplash();
+    $("screen-mods").innerHTML = '<div class="card gate"><div class="ge">📡</div><h2>Server javob bermadi</h2>' +
+      '<p>Internet yoki server holatini tekshiring.</p>' +
+      '<button class="btn primary block" data-action="retry">Qayta urinish</button></div>';
+  });
+}
+function hideSplash(){ var s = $("splash"); if(s){ s.classList.add("out"); setTimeout(function(){ s.remove(); }, 400); } }
+
+function renderBlocked(){
+  $("nav").innerHTML = "";
+  $("hdrTitle").textContent = "MODHUB";
+  $("hdrSub").textContent = "";
+  $("screen-mods").innerHTML =
+    '<div class="card gate"><div class="ge">🚫</div><h2>Bloklangansiz</h2>' +
+    '<p>Siz bloklangansiz iltimos admin bilan bo\'g\'laning : @' + esc(state.support) + '</p>' +
+    '<a class="btn primary block" href="https://t.me/' + esc(state.support) + '" target="_blank">✍️ Adminga yozish</a></div>';
+  $("screen-mods").classList.add("active");
+}
+
+function renderGate(){
+  $("nav").innerHTML = "";
+  $("hdrTitle").textContent = "Obuna kerak";
+  $("hdrSub").textContent = "Kanallarga qo'shiling";
+  var chans = state.channels || [];
+  var links = chans.map(function(c){
+    var s = String(c);
+    return '<a class="ch" target="_blank" href="https://t.me/' + esc(s.charAt(0)==="@"?s.slice(1):s) + '">📢 ' + esc(s) + '</a>';
+  }).join("") || '<div class="ch">📢 Kanal mavjud emas</div>';
+  $("screen-mods").innerHTML =
+    '<div class="card gate"><div class="ge">🔒</div><h2>Obuna kerak</h2>' +
+    '<p>Bot va saytning barcha imkoniyatlaridan foydalanish uchun quyidagi kanallarga obuna bo\'ling.</p>' +
+    links +
+    '<div class="divider"></div>' +
+    '<button class="btn primary block" data-action="check-sub">♻️ Obunani tekshirish</button></div>';
+  $("screen-mods").classList.add("active");
+}
+
+/* ---------- mods ---------- */
+function sortedFiltered(){
+  var list = state.mods.slice();
+  if(state.cat === "favorites"){
+    var favs = new Set(state.favorites);
+    list = list.filter(function(m){ return favs.has(m.id); });
+  } else if(state.cat !== "all"){
+    list = list.filter(function(m){ return m.category === state.cat; });
+  }
+  if(state.q){
+    var q = state.q;
+    list = list.filter(function(m){
+      return (m.name||"").toLowerCase().indexOf(q) >= 0 ||
+             (m.description||"").toLowerCase().indexOf(q) >= 0 ||
+             (m.category_name||"").toLowerCase().indexOf(q) >= 0;
+    });
+  }
+  if(state.sort === "top"){
+    list.sort(function(a,b){ return (b.downloads||0) - (a.downloads||0); });
+  }
+  return list;
+}
+function catChip(c){
+  var active = state.cat === c.id;
+  return '<button class="chip ' + (active?"active":"") + '" data-action="cat" data-cat="' + esc(c.id) + '">' +
+    '<span class="ci">' + esc(c.icon) + '</span>' + esc(c.name) + '</button>';
+}
+function modCard(m){
+  var cover = m.photos && m.photos.length
+    ? '<img class="cover" loading="lazy" src="' + esc(m.photos[0]) + '" alt="">'
+    : '<div class="ph">⛏️</div>';
+  var saved = state.favorites.indexOf(m.id) >= 0;
+  return '<button class="mod-card" data-action="open-mod" data-id="' + esc(m.id) + '">' + cover +
+    '<span class="dl-pill">⬇️ ' + fmt(m.downloads) + '</span>' +
+    (saved ? '<span class="badge-save">❤️</span>' : '') +
+    '<span class="body"><span class="name">' + esc(m.name) + '</span>' +
+    '<span class="meta"><span class="cat">' + esc(m.category_name) + '</span>' +
+    '<span>' + esc(m.date ? m.date.split(" ")[0] : "") + '</span></span></span></button>';
+}
+function renderModGrid(){
+  var list = sortedFiltered();
+  var grid = $("modGrid");
+  var cnt = $("modCount");
+  if(cnt) cnt.textContent = list.length + " ta";
+  if(!grid) return;
+  if(!list.length){
+    grid.innerHTML = '';
+    var empty = $("modEmpty");
+    if(empty){
+      empty.classList.remove("hide");
+      empty.querySelector(".em-title").textContent = state.cat === "favorites" ? "Saqlangan modlar yo'q" : "Modlar topilmadi";
+      empty.querySelector(".em-sub").textContent = state.cat === "favorites"
+        ? "Modni ochib ❤️ tugmasini bosing — shu yerda saqlanadi."
+        : "Boshqa kategoriyani tanlab ko'ring.";
+    }
+  } else {
+    var empty2 = $("modEmpty");
+    if(empty2) empty2.classList.add("hide");
+    grid.innerHTML = list.map(modCard).join("");
+  }
+}
+function renderMods(){
+  var cats = state.categories || [];
+  $("screen-mods").innerHTML =
+    '<div class="search"><span class="ico">🔍</span>' +
+      '<input id="modSearch" type="text" placeholder="Mod qidirish..." value="' + esc(state.q) + '" autocomplete="off"></div>' +
+    '<div class="cats" id="cats">' + cats.map(catChip).join("") + '</div>' +
+    '<div class="section-title"><h2>🔥 Modlar</h2><span class="count" id="modCount"></span></div>' +
+    '<div class="seg" style="margin-bottom:12px;max-width:260px">' +
+      '<button data-action="sort" data-sort="new" class="' + (state.sort==="new"?"active":"") + '">🆕 Yangi</button>' +
+      '<button data-action="sort" data-sort="top" class="' + (state.sort==="top"?"active":"") + '">🔥 Mashhur</button></div>' +
+    '<div class="grid" id="modGrid"></div>' +
+    '<div class="empty hide" id="modEmpty"><div class="e">📭</div>' +
+      '<h3 class="em-title">Modlar yo\'q</h3><p class="em-sub"></p></div>' +
+    '<div class="foot">MODHUB • @' + esc(state.bot_username || "") + '</div>';
+  renderModGrid();
+}
+
+function modDetailHTML(m){
+  var photos = m.photos || [];
+  var gal = photos.length
+    ? '<div class="gallery" id="gallery">' + photos.map(function(p){
+        return '<img src="' + esc(p) + '" alt="">';
+      }).join("") + '</div>' +
+      (photos.length > 1 ? '<div class="dots">' + photos.map(function(_,i){
+        return '<i class="' + (i===0?"on":"") + '"></i>';
+      }).join("") + '</div>' : '')
+    : '<div class="gallery"><div class="ph" style="width:100%;aspect-ratio:4/3;display:grid;place-items:center;font-size:48px">⛏️</div></div>';
+  var fav = state.favorites.indexOf(m.id) >= 0;
+  var files = m.files || [];
+  var filesHtml;
+  if(!files.length){
+    filesHtml = '<div class="file-row"><span class="fi">📭</span><span class="fn muted">Fayl biriktirilmagan</span></div>';
+  } else if(files.length === 1){
+    filesHtml = '<button class="btn primary block" data-action="dl" data-id="' + esc(m.id) + '" data-file="0">⬇️ Yuklab olish</button>';
+  } else {
+    filesHtml = files.map(function(f,i){
+      return '<button class="file-row" data-action="dl" data-id="' + esc(m.id) + '" data-file="' + i + '" style="width:100%;text-align:left">' +
+        '<span class="fi">📦</span><span class="fn grow">' + esc(f.name) + '</span><span class="muted">⬇️</span></button>';
+    }).join("");
+  }
+  var shareUrl = "https://t.me/" + state.bot_username + "?start=" + encodeURIComponent(m.id);
+  var share = "https://t.me/share/url?url=" + encodeURIComponent(shareUrl) + "&text=" +
+    encodeURIComponent("🎮 " + m.name + " — Minecraft modi");
+  return '<div class="sheet-top"><button class="back" data-action="close-sheet">←</button>' +
+    '<div class="ttl">' + esc(m.name) + '</div></div>' + gal +
+    '<div class="detail">' +
+      '<div class="row between" style="align-items:flex-start">' +
+        '<h2 class="grow">' + esc(m.name) + '</h2>' +
+        '<button class="icon-btn" data-action="fav" data-id="' + esc(m.id) + '" id="favBtn" ' +
+          'style="width:42px;height:42px;font-size:18px">' + (fav ? "❤️" : "🤍") + '</button>' +
+      '</div>' +
+      '<div class="tags"><span class="tag accent">' + esc(m.category_name) + '</span>' +
+        '<span class="tag">⬇️ ' + fmt(m.downloads) + ' yuklanish</span>' +
+        '<span class="tag">📅 ' + esc(m.date || "") + '</span></div>' +
+      (m.description ? '<div class="desc">' + esc(m.description) + '</div>' : '<div class="desc muted">Tavsif yo\'q</div>') +
+      '<div class="actions"><div></div>' +
+        '<a class="btn ghost" href="' + esc(share) + '" target="_blank" title="Ulashish">🔗</a>' +
+        '<button class="btn ghost" data-action="fav" data-id="' + esc(m.id) + '">❤️</button></div>' +
+      '<div class="files" style="margin-top:12px">' + filesHtml + '</div>' +
+      '<div class="comments"><h3 style="font-size:14px;font-weight:800;margin-bottom:4px">💬 Izohlar <span class="muted" id="cmCount"></span></h3>' +
+        '<div id="cmList"><div class="muted small" style="padding:10px 0">Yuklanmoqda...</div></div>' +
+        '<div class="comment-box"><input id="cmInput" type="text" maxlength="500" placeholder="Izoh yozing...">' +
+        '<button data-action="send-comment" data-id="' + esc(m.id) + '">➤</button></div></div>' +
+    '</div>';
+}
+
+function openMod(id){
+  var m = state.mods.filter(function(x){ return x.id === id; })[0];
+  if(!m) return;
+  state.mod = m;
+  sheet.innerHTML = modDetailHTML(m);
+  sheet.classList.add("open");
+  document.body.style.overflow = "hidden";
+  try{ if(tg && tg.BackButton){ tg.BackButton.show(); tg.BackButton.onClick(closeSheet); } }catch(e){}
+  var g = $("gallery");
+  if(g){
+    var dots = sheet.querySelectorAll(".dots i");
+    g.addEventListener("scroll", function(){
+      var idx = Math.round(g.scrollLeft / Math.max(1, g.clientWidth));
+      dots.forEach(function(d,i){ d.classList.toggle("on", i===idx); });
+    }, {passive:true});
+  }
+  loadComments(id);
+}
+function closeSheet(){
+  sheet.classList.remove("open");
+  document.body.style.overflow = "";
+  state.mod = null;
+  try{ if(tg && tg.BackButton) tg.BackButton.hide(); }catch(e){}
+  setTimeout(function(){ if(!sheet.classList.contains("open")) sheet.innerHTML = ""; }, 320);
+}
+function loadComments(mid){
+  fetch("/api/comments?mod_id=" + encodeURIComponent(mid)).then(function(r){ return r.json(); }).then(function(r){
+    var list = (r && r.comments) || [];
+    var el = $("cmList");
+    if(!el) return;
+    var cnt = $("cmCount");
+    if(cnt) cnt.textContent = list.length ? "(" + list.length + ")" : "";
+    if(!list.length){
+      el.innerHTML = '<div class="muted small" style="padding:10px 0">Hali izoh yo\'q. Birinchi bo\'ling!</div>';
+      return;
+    }
+    el.innerHTML = list.map(function(c,i){
+      return '<div class="comment"><div><span class="who">' + esc(c.user_name) + '</span>' +
+        '<span class="when">' + esc(c.date) + '</span>' +
+        (state.is_admin ? '<button class="icon-btn" data-action="del-comment" data-id="' + esc(mid) +
+          '" data-index="' + i + '" style="float:right;width:24px;height:24px;font-size:11px">🗑️</button>' : '') +
+        '</div><div class="txt">' + esc(c.text) + '</div></div>';
+    }).join("");
+  }).catch(function(){});
+}
+function toggleFav(id){
+  api("/api/favorite", {mod_id:id}).then(function(r){
+    if(!r.ok){
+      toast(r.error || "Xatolik", true);
+      return;
+    }
+    var i = state.favorites.indexOf(id);
+    if(r.saved && i < 0) state.favorites.push(id);
+    if(!r.saved && i >= 0) state.favorites.splice(i, 1);
+    state.mods.forEach(function(m){ if(m.id === id) m.saved = r.saved; });
+    haptic("ok");
+    toast(r.saved ? "❤️ Saqlanganlarga qo'shildi" : "🤍 Saqlanganlardan olib tashlandi");
+    var fbtn = $("favBtn");
+    if(fbtn) fbtn.textContent = r.saved ? "❤️" : "🤍";
+    renderModGrid();
+    if(state.tab === "profile") renderProfile();
+  });
+}
+function downloadFile(mid, idx){
+  haptic("light");
+  var url = "/download/" + encodeURIComponent(mid) + "/" + idx;
+  try{
+    if(tg && tg.openLink) tg.openLink(url);
+    else window.location.href = url;
+  }catch(e){ window.location.href = url; }
+  toast("⬇️ Yuklab olish boshlandi");
+}
+
+/* ---------- settings ---------- */
+function renderSettings(){
+  var s = state.settings;
+  var theme = s.theme === "light" ? "light" : "dark";
+  var chans = (state.channels || []).map(function(c){
+    var str = String(c);
+    return '<a class="ch" target="_blank" href="https://t.me/' + esc(str.charAt(0)==="@"?str.slice(1):str) + '" style="margin-bottom:8px">' +
+      '📢 ' + esc(str) + '<span style="margin-left:auto">➜</span></a>';
+  }).join("") || '<div class="muted small">Kanallar belgilanmagan.</div>';
+  $("screen-settings").innerHTML =
+    '<div class="card">' +
+      '<div class="row" style="gap:12px;margin-bottom:4px">' +
+        '<div class="avatar" style="width:52px;height:52px;font-size:22px;border-width:2px">' +
+          (state.user.avatar ? '<img src="' + esc(state.user.avatar) + '" style="width:100%;height:100%;object-fit:cover">' : '👤') +
+        '</div>' +
+        '<div class="grow"><div style="font-weight:800;font-size:15px">' + esc(state.user.name) + '</div>' +
+        '<div class="muted small">' + (state.user.username ? "@" + esc(state.user.username) : "ID: " + state.user.id) + '</div></div>' +
+        '<button class="btn sm ghost" data-action="tab" data-tab="profile">Profil</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="card"><h3>🎨 Ko\'rinish</h3>' +
+      '<div class="field"><label>Sayt rangi</label>' +
+        '<div class="seg">' +
+          '<button data-action="theme" data-theme="light" class="' + (theme==="light"?"active":"") + '">☀️ Oq</button>' +
+          '<button data-action="theme" data-theme="dark" class="' + (theme==="dark"?"active":"") + '">🌙 Qora</button>' +
+        '</div></div>' +
+      '<div class="toggle-row"><div><div class="tl">🌸 Sakura foni</div>' +
+        '<div class="ts">Minecraft sakura daraxtlari orqa foni</div></div>' +
+        '<button class="switch ' + (s.bg?"on":"") + '" data-action="toggle-bg"></button></div>' +
+      '<div class="toggle-row"><div><div class="tl">🔊 Ovoz effektlari</div>' +
+        '<div class="ts">Tugma bosilganda yumshoq ovoz</div></div>' +
+        '<button class="switch ' + (s.sound?"on":"") + '" data-action="toggle-sound"></button></div>' +
+    '</div>' +
+    '<div class="card"><h3>📢 Majburiy obuna</h3>' +
+      (state.is_admin ? '<div class="tag accent" style="margin-bottom:10px;display:inline-block">Admin — obuna talab qilinmaydi</div>' : '') +
+      chans +
+      '<button class="btn block" style="margin-top:6px" data-action="check-sub">♻️ Obunani tekshirish</button>' +
+    '</div>' +
+    '<div class="card"><h3>💬 Yordam</h3>' +
+      '<div class="list-row"><div class="lr-ico">👨‍💻</div><div class="lr-main">' +
+        '<div class="lr-t">Admin bilan bog\'lanish</div><div class="lr-s">@' + esc(state.support) + '</div></div>' +
+        '<a class="btn sm ghost" target="_blank" href="https://t.me/' + esc(state.support) + '">Ochish</a></div>' +
+      '<div class="list-row"><div class="lr-ico">✉️</div><div class="lr-main">' +
+        '<div class="lr-t">Xabar yuborish</div><div class="lr-s">Bot orqali adminga yozish</div></div>' +
+        '<button class="btn sm" data-action="open-support">Yozish</button></div>' +
+    '</div>' +
+    '<div class="foot">MODHUB v2.0 • @' + esc(state.bot_username) + '</div>';
+}
+
+/* ---------- profile ---------- */
+function renderProfile(){
+  var favs = new Set(state.favorites);
+  var saved = state.mods.filter(function(m){ return favs.has(m.id); });
+  var ref = "https://t.me/" + state.bot_username + "?start=ref_" + state.user.id;
+  var share = "https://t.me/share/url?url=" + encodeURIComponent(ref) +
+    "&text=" + encodeURIComponent("🎮 Minecraft modlarini bepul yuklab oling!");
+  var av = state.user.avatar
+    ? '<img src="' + esc(state.user.avatar) + '" style="width:100%;height:100%;object-fit:cover" alt="">'
+    : "👤";
+  $("screen-profile").innerHTML =
+    '<div class="profile-head">' +
+      '<div class="avatar-wrap"><div class="avatar">' + av + '</div>' +
+        '<button class="cam" data-action="pick-avatar">📷</button></div>' +
+      '<div class="profile-name">' + esc(state.user.name) + '</div>' +
+      '<div class="profile-un">' + (state.user.username ? "@" + esc(state.user.username) : "Telegram foydalanuvchisi") + '</div>' +
+      '<div class="id-pill">ID: ' + esc(state.user.id) + (state.joined ? " • " + esc(state.joined.split(" ")[0]) : "") + '</div>' +
+    '</div>' +
+    '<div class="mini-stats">' +
+      '<div class="mini-stat"><div class="v">' + fmt(saved.length) + '</div><div class="l">Saqlangan</div></div>' +
+      '<div class="mini-stat"><div class="v">' + fmt(state.invited_count) + '</div><div class="l">Taklif qilgan</div></div>' +
+      '<div class="mini-stat"><div class="v">' + fmt((state.stats && state.stats.downloads) || 0) + '</div><div class="l">Yuklanishlar</div></div>' +
+    '</div>' +
+    '<div class="card" style="margin-top:14px"><h3>🎁 Taklifnoma havolasi</h3>' +
+      '<p class="muted small">Do\'stlaringizni taklif qiling — ular botga kirsa sizga xabar keladi.</p>' +
+      '<div class="ref-box">' + esc(ref) + '</div>' +
+      '<div class="row" style="margin-top:10px">' +
+        '<button class="btn grow" data-action="copy-ref">📋 Nusxalash</button>' +
+        '<a class="btn primary grow" style="text-decoration:none" href="' + esc(share) + '" target="_blank">📤 Ulashish</a>' +
+      '</div></div>' +
+    '<div class="section-title"><h2>❤️ Saqlangan modlar</h2><span class="count">' + saved.length + ' ta</span></div>' +
+    (saved.length
+      ? '<div class="grid">' + saved.map(modCard).join("") + '</div>'
+      : '<div class="empty" style="padding:26px"><div class="e">🤍</div><h3>Hali saqlangan mod yo\'q</h3>' +
+        '<p class="small">Modni ochib yurakcha tugmasini bosing.</p></div>') +
+    '<div class="foot">MODHUB v2.0</div>';
+}
+
+/* ---------- admin ---------- */
+function loadAdmin(){
+  return api("/api/admin/stats").then(function(r){
+    if(!r.ok){ toast(r.error || "Xatolik", true); return; }
+    state.stats = r.stats;
+    state.adminLoaded = true;
+    state.channels = r.stats.channels || state.channels;
+    renderAdmin();
+  }).catch(function(){ toast("Statistika yuklanmadi", true); });
+}
+function renderAdmin(){
+  var st = state.stats;
+  if(!st){
+    $("screen-admin").innerHTML = '<div class="empty"><div class="e">⏳</div><h3>Yuklanmoqda...</h3></div>';
+    return;
+  }
+  var groups = st.groups_live || [];
+  var blocked = st.blocked || [];
+  $("screen-admin").innerHTML =
+    '<div class="row between" style="margin:2px 2px 12px">' +
+      '<div><div style="font-weight:800;font-size:16px">📊 Statistika</div>' +
+      '<div class="muted small">Faqat jonli ma\'lumotlar</div></div>' +
+      '<button class="btn sm" data-action="admin-refresh">🔄 Yangilash</button></div>' +
+    '<div class="stat-grid">' +
+      '<div class="stat live"><div class="sv">' + fmt(st.users_live) + '</div><div class="sl">Jonli foydalanuvchi</div>' +
+        '<div class="ss">Jami: ' + fmt(st.users_total) + ' • ' + st.live_days + ' kun</div></div>' +
+      '<div class="stat"><div class="sv">' + fmt(st.web_live) + '</div><div class="sl">Saytda hozir</div>' +
+        '<div class="ss">Oxirgi 5 daqiqa</div></div>' +
+      '<div class="stat"><div class="sv">' + fmt(st.mods) + '</div><div class="sl">Modlar</div>' +
+        '<div class="ss">' + fmt(st.downloads) + ' yuklanish</div></div>' +
+      '<div class="stat"><div class="sv">' + fmt(groups.length) + '</div><div class="sl">Jonli guruhlar</div>' +
+        '<div class="ss">Bot ishlayotgan</div></div>' +
+      '<div class="stat"><div class="sv">' + fmt(st.users_today) + '</div><div class="sl">Bugun qo\'shildi</div></div>' +
+      '<div class="stat"><div class="sv">' + fmt(blocked.length) + '</div><div class="sl">Bloklangan</div></div>' +
+      '<div class="stat"><div class="sv">' + fmt(st.comments) + '</div><div class="sl">Izohlar</div></div>' +
+      '<div class="stat"><div class="sv">' + fmt(st.admins.length) + '</div><div class="sl">Adminlar</div></div>' +
+    '</div>' +
+    '<div class="section-title"><h2>⚡ Tezkor amallar</h2></div>' +
+    '<div class="quick">' +
+      '<button data-action="add-mod"><span class="qi">➕</span> Mod qo\'shish</button>' +
+      '<button data-action="broadcast"><span class="qi">📢</span> Xabar tarqatish</button>' +
+      '<button data-action="channels"><span class="qi">📣</span> Kanallar</button>' +
+      '<button data-action="block"><span class="qi">🚫</span> Bloklash</button>' +
+      '<button data-action="admins"><span class="qi">👤</span> Adminlar</button>' +
+      '<button data-action="users"><span class="qi">👥</span> Jonli foydalanuvchilar</button>' +
+      '<button data-action="groups"><span class="qi">🌐</span> Guruhlar</button>' +
+      '<a class="btn" style="justify-content:flex-start;gap:9px;padding:12px;font-size:12.5px" ' +
+        'href="/api/admin/backup?init_data=' + encodeURIComponent((tg && tg.initData) || "") +
+        (DEV ? '&dev_user=' + encodeURIComponent(DEV) : '') + '"><span class="qi" style="font-size:18px">💾</span> Zaxira olish</a>' +
+    '</div>' +
+    '<div class="section-title"><h2>📦 Modlarni boshqarish</h2><span class="count">' + state.mods.length + ' ta</span></div>' +
+    '<div class="card" id="adminMods">' + adminModsHTML() + '</div>' +
+    (groups.length
+      ? '<div class="card" style="margin-top:12px"><h3>🌐 Jonli guruhlar (' + groups.length + ')</h3>' +
+        groups.slice(0,8).map(function(g){
+          return '<div class="list-row"><div class="lr-ico">💬</div><div class="lr-main">' +
+            '<div class="lr-t">' + esc(g.title) + '</div><div class="lr-s">' + esc(g.id) + '</div></div></div>';
+        }).join("") + '</div>'
+      : '') +
+    '<div class="foot">MODHUB Admin • faqat jonli ko\'rsatkichlar</div>';
+}
+function adminModsHTML(){
+  if(!state.mods.length) return '<div class="muted small" style="padding:6px 0">Modlar yo\'q. ➕ Mod qo\'shish tugmasini bosing.</div>';
+  return state.mods.map(function(m){
+    var img = m.photos && m.photos.length
+      ? '<img src="' + esc(m.photos[0]) + '" alt="">'
+      : '<div class="mph">⛏️</div>';
+    return '<div class="admin-mod">' + img +
+      '<div class="am-main"><div class="am-t">' + esc(m.name) + '</div>' +
+      '<div class="am-s">' + esc(m.category_name) + ' • ⬇️ ' + fmt(m.downloads) + ' • ' + esc(m.date) + '</div></div>' +
+      '<div class="icon-btns">' +
+        '<button class="icon-btn" title="Tahrirlash" data-action="edit-mod" data-id="' + esc(m.id) + '">✏️</button>' +
+        '<button class="icon-btn" title="Kanalga joylash" data-action="publish-mod" data-id="' + esc(m.id) + '">📢</button>' +
+        '<button class="icon-btn" title="O\'chirish" data-action="delete-mod" data-id="' + esc(m.id) + '">🗑️</button>' +
+      '</div></div>';
+  }).join("");
+}
+
+/* ---------- modals ---------- */
+function openModal(html, wide){
+  modal.innerHTML = html;
+  modalWrap.classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+function closeModal(){
+  modalWrap.classList.remove("open");
+  if(!sheet.classList.contains("open")) document.body.style.overflow = "";
+}
+function ask(msg){
+  return new Promise(function(resolve){
+    openModal('<div class="m-head"><h3>Tasdiqlash</h3>' +
+      '<button class="m-close" data-action="close-modal">✕</button></div>' +
+      '<p class="muted" style="margin-bottom:16px">' + esc(msg) + '</p>' +
+      '<div class="form-actions">' +
+      '<button class="btn ghost" data-action="close-modal">Bekor qilish</button>' +
+      '<button class="btn danger" id="askYes">Ha, davom etish</button></div>');
+    $("askYes").onclick = function(){ closeModal(); resolve(true); };
+    modalWrap.querySelector("[data-action=close-modal]").addEventListener("click", function(){ resolve(false); });
+    modal.querySelectorAll("[data-action=close-modal]").forEach(function(b){
+      b.addEventListener("click", function(){ resolve(false); });
+    });
+  });
+}
+function categoryOptions(selected){
+  return (state.categories || []).filter(function(c){
+    return c.id !== "all" && c.id !== "favorites";
+  }).map(function(c){
+    return '<option value="' + esc(c.id) + '" ' + (c.id===selected?"selected":"") + '>' +
+      esc(c.icon + " " + c.name) + '</option>';
+  }).join("");
+}
+function openAddMod(){
+  openModal('<div class="m-head"><h3>➕ Yangi mod</h3>' +
+    '<button class="m-close" data-action="close-modal">✕</button></div>' +
+    '<form id="addModForm">' +
+      '<div class="field"><label>Mod nomi</label><input name="name" type="text" required maxlength="120" placeholder="Masalan: Super Cars Addon"></div>' +
+      '<div class="field"><label>Tavsif</label><textarea name="description" rows="3" maxlength="2000" placeholder="Mod haqida qisqacha..."></textarea></div>' +
+      '<div class="field"><label>Kategoriya</label><select name="category">' + categoryOptions("minecraft") + '</select></div>' +
+      '<div class="field"><label>Rasmlar (1–5 ta)</label>' +
+        '<input class="file-in" id="modPhotos" type="file" name="photos" accept="image/*" multiple>' +
+        '<div class="preview" id="photoPreview"></div>' +
+        '<div class="hint">Birinchi rasm asosiy muqova bo\'ladi.</div></div>' +
+      '<div class="field"><label>Fayllar (.mcaddon, .mcpack, .zip ...)</label>' +
+        '<input class="file-in" type="file" name="files" multiple></div>' +
+      '<label class="checkline"><input type="checkbox" name="publish" value="1"> Telegram kanalga ham joylash</label>' +
+      '<button class="btn primary block" type="submit" id="addModBtn">📤 Yuklash</button>' +
+    '</form>');
+}
+function openEditMod(id){
+  var m = state.mods.filter(function(x){ return x.id === id; })[0];
+  if(!m) return;
+  openModal('<div class="m-head"><h3>✏️ Tahrirlash</h3>' +
+    '<button class="m-close" data-action="close-modal">✕</button></div>' +
+    '<form id="editModForm" data-id="' + esc(m.id) + '">' +
+      '<div class="field"><label>Nomi</label><input name="name" type="text" value="' + esc(m.name) + '" maxlength="120" required></div>' +
+      '<div class="field"><label>Tavsif</label><textarea name="description" rows="4" maxlength="2000">' + esc(m.description) + '</textarea></div>' +
+      '<div class="field"><label>Kategoriya</label><select name="category">' + categoryOptions(m.category) + '</select></div>' +
+      '<div class="form-actions"><button class="btn ghost" type="button" data-action="close-modal">Bekor</button>' +
+      '<button class="btn primary" type="submit">💾 Saqlash</button></div>' +
+    '</form>');
+}
+function openBroadcast(){
+  openModal('<div class="m-head"><h3>📢 Xabar tarqatish</h3>' +
+    '<button class="m-close" data-action="close-modal">✕</button></div>' +
+    '<div class="field"><label>Xabar matni</label><textarea id="bcText" rows="5" placeholder="Barcha jonli foydalanuvchilarga yuboriladi..."></textarea></div>' +
+    '<p class="hint" style="margin-bottom:12px">Bloklangan foydalanuvchilarga xabar yuborilmaydi. Tezkor rejim (20 parallel).</p>' +
+    '<button class="btn primary block" data-action="send-broadcast">🚀 Yuborish</button>');
+}
+function openChannels(){
+  var chans = state.channels || [];
+  openModal('<div class="m-head"><h3>📣 Obuna kanallari</h3>' +
+    '<button class="m-close" data-action="close-modal">✕</button></div>' +
+    '<div class="list-scroll">' +
+      (chans.length ? chans.map(function(c){
+        return '<div class="list-row"><div class="lr-ico">📢</div>' +
+          '<div class="lr-main"><div class="lr-t">' + esc(c) + '</div></div>' +
+          '<button class="icon-btn" data-action="channel-del" data-ch="' + esc(c) + '">🗑️</button></div>';
+      }).join("") : '<div class="muted small" style="padding:8px 0">Kanallar yo\'q.</div>') +
+    '</div>' +
+    '<div class="divider"></div>' +
+    '<div class="field"><label>Yangi kanal</label><input id="newChannel" type="text" placeholder="@kanal_username yoki -100..."></div>' +
+    '<button class="btn primary block" data-action="channel-add">➕ Kanal qo\'shish</button>' +
+    '<p class="hint" style="margin-top:10px">Bot kanalda admin bo\'lishi shart.</p>');
+}
+function openBlock(){
+  var blocked = (state.stats && state.stats.blocked) || [];
+  openModal('<div class="m-head"><h3>🚫 Bloklash</h3>' +
+    '<button class="m-close" data-action="close-modal">✕</button></div>' +
+    '<div class="field"><label>Foydalanuvchi ID</label><input id="blockId" type="text" inputmode="numeric" placeholder="Masalan: 123456789"></div>' +
+    '<button class="btn danger block" data-action="block-submit">🚫 Bloklash</button>' +
+    '<div class="divider"></div>' +
+    '<h3 style="font-size:13px;margin-bottom:4px">Bloklanganlar (' + blocked.length + ')</h3>' +
+    '<div class="list-scroll">' +
+      (blocked.length ? blocked.map(function(b){
+        return '<div class="list-row"><div class="lr-ico">🚫</div>' +
+          '<div class="lr-main"><div class="lr-t">' + esc(b.name) + '</div>' +
+          '<div class="lr-s">ID: ' + esc(b.id) + ' • ' + esc(b.date) + '</div></div>' +
+          '<button class="btn sm" data-action="unblock" data-id="' + esc(b.id) + '">✅</button></div>';
+      }).join("") : '<div class="muted small" style="padding:8px 0">Bloklanganlar yo\'q.</div>') +
+    '</div>');
+}
+function openAdmins(){
+  var admins = (state.stats && state.stats.admins) || [];
+  openModal('<div class="m-head"><h3>👤 Adminlar</h3>' +
+    '<button class="m-close" data-action="close-modal">✕</button></div>' +
+    '<div class="list-scroll">' + admins.map(function(a){
+      return '<div class="list-row"><div class="lr-ico">👑</div>' +
+        '<div class="lr-main"><div class="lr-t">ID: ' + esc(a) + '</div></div>' +
+        '<button class="icon-btn" data-action="admin-del" data-id="' + esc(a) + '">🗑️</button></div>';
+    }).join("") + '</div>' +
+    '<div class="divider"></div>' +
+    '<div class="field"><label>Yangi admin ID</label><input id="adminId" type="text" inputmode="numeric" placeholder="Telegram ID"></div>' +
+    '<button class="btn primary block" data-action="admin-add">➕ Admin qo\'shish</button>');
+}
+function openUsers(){
+  openModal('<div class="m-head"><h3>👥 Jonli foydalanuvchilar</h3>' +
+    '<button class="m-close" data-action="close-modal">✕</button></div>' +
+    '<div class="search" style="margin-bottom:8px"><span class="ico">🔍</span>' +
+    '<input id="userSearch" type="text" placeholder="Ism yoki ID..." autocomplete="off"></div>' +
+    '<div class="list-scroll" id="userList"><div class="muted small" style="padding:8px 0">Yuklanmoqda...</div></div>');
+  loadUsers("");
+}
+function loadUsers(q){
+  api("/api/admin/users", {q:q}).then(function(r){
+    var el = $("userList");
+    if(!el) return;
+    if(!r.ok){ el.innerHTML = '<div class="muted small" style="padding:8px 0">' + esc(r.error||"Xatolik") + '</div>'; return; }
+    var users = r.users || [];
+    el.innerHTML = users.length ? users.map(function(u){
+      return '<div class="list-row"><div class="lr-ico">' + (u.blocked ? "🚫" : "👤") + '</div>' +
+        '<div class="lr-main"><div class="lr-t">' + esc(u.name) + (u.username ? " @" + esc(u.username) : "") + '</div>' +
+        '<div class="lr-s">ID: ' + esc(u.id) + ' • ' + esc(u.last_seen) + '</div></div>' +
+        (u.blocked
+          ? '<button class="btn sm" data-action="unblock" data-id="' + esc(u.id) + '">✅</button>'
+          : '<button class="btn sm danger" data-action="user-block" data-id="' + esc(u.id) + '">🚫</button>') +
+        '</div>';
+    }).join("") : '<div class="muted small" style="padding:8px 0">Jonli foydalanuvchi topilmadi.</div>' +
+      '<div class="hint" style="padding:4px 0">Jami: ' + fmt(r.total) + '</div>';
+  });
+}
+function openGroups(){
+  var groups = (state.stats && state.stats.groups_live) || [];
+  openModal('<div class="m-head"><h3>🌐 Jonli guruhlar</h3>' +
+    '<button class="m-close" data-action="close-modal">✕</button></div>' +
+    '<p class="hint" style="margin-bottom:10px">Bot hozirda ishlayotgan guruhlar.</p>' +
+    '<div class="list-scroll">' +
+    (groups.length ? groups.map(function(g){
+      return '<div class="list-row"><div class="lr-ico">💬</div><div class="lr-main">' +
+        '<div class="lr-t">' + esc(g.title) + '</div><div class="lr-s">' + esc(g.id) + ' • ' + esc(g.date) + '</div></div></div>';
+    }).join("") : '<div class="muted small" style="padding:8px 0">Bot hali guruhlarda ishlamayapti.</div>') +
+    '</div>');
+}
+function openSupport(){
+  openModal('<div class="m-head"><h3>✉️ Adminga yozish</h3>' +
+    '<button class="m-close" data-action="close-modal">✕</button></div>' +
+    '<div class="field"><label>Xabar</label><textarea id="supportText" rows="4" placeholder="Savol yoki taklifingizni yozing..."></textarea></div>' +
+    '<button class="btn primary block" data-action="send-support">📩 Yuborish</button>' +
+    '<p class="hint" style="margin-top:10px">Javob Telegram orqali keladi • @' + esc(state.support) + '</p>');
+}
+
+/* ---------- admin actions ---------- */
+function submitModForm(form){
+  var fd = new FormData(form);
+  var btn = $("addModBtn");
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Yuklanmoqda...'; }
+  if(!form.publish.checked) fd.delete("publish"); else fd.set("publish", "1");
+  apiForm("/api/admin/mod_add", fd).then(function(r){
+    if(!r.ok){
+      toast(r.error || "Xatolik", true);
+      if(btn){ btn.disabled = false; btn.textContent = "📤 Yuklash"; }
+      return;
+    }
+    state.mods.unshift(r.mod);
+    closeModal();
+    haptic("ok");
+    toast(r.published ? "✅ Mod qo'shildi va kanalga joylandi" : "✅ Mod muvaffaqiyatli qo'shildi");
+    renderMods();
+    if(state.adminLoaded) renderAdmin();
+  }).catch(function(){
+    toast("Yuklashda xatolik", true);
+    if(btn){ btn.disabled = false; btn.textContent = "📤 Yuklash"; }
+  });
+}
+function submitEditForm(form){
+  var id = form.dataset.id;
+  var fd = new FormData(form);
+  api("/api/admin/mod_edit", {
+    mod_id:id,
+    name:fd.get("name"),
+    description:fd.get("description"),
+    category:fd.get("category")
+  }).then(function(r){
+    if(!r.ok){ toast(r.error || "Xatolik", true); return; }
+    var m = state.mods.filter(function(x){ return x.id === id; })[0];
+    if(m){
+      m.name = fd.get("name");
+      m.description = fd.get("description");
+      m.category = fd.get("category");
+      var cat = (state.categories||[]).filter(function(c){ return c.id === m.category; })[0];
+      m.category_name = cat ? (cat.icon + " " + cat.name) : m.category;
+    }
+    closeModal();
+    haptic("ok");
+    toast("✅ Saqlandi");
+    renderMods();
+    renderAdmin();
+  });
+}
+
+function handleAction(a, el){
+  switch(a){
+    case "retry": location.reload(); break;
+    case "tab": setTab(el.dataset.tab); break;
+    case "cat":
+      state.cat = el.dataset.cat;
+      document.querySelectorAll('#cats .chip').forEach(function(c){
+        c.classList.toggle("active", c.dataset.cat === state.cat);
+      });
+      renderModGrid(); break;
+    case "sort":
+      state.sort = el.dataset.sort;
+      document.querySelectorAll('[data-action=sort]').forEach(function(b){
+        b.classList.toggle("active", b.dataset.sort === state.sort);
+      });
+      renderModGrid(); break;
+    case "open-mod": openMod(el.dataset.id); break;
+    case "close-sheet": closeSheet(); break;
+    case "fav": toggleFav(el.dataset.id); break;
+    case "dl": downloadFile(el.dataset.id, el.dataset.file || 0); break;
+    case "send-comment": {
+      var input = $("cmInput");
+      if(!input || !input.value.trim()) return;
+      var text = input.value.trim();
+      var mid = el.dataset.id;
+      api("/api/comments", {mod_id:mid, text:text}).then(function(r){
+        if(!r.ok){ toast(r.error || "Xatolik", true); return; }
+        input.value = "";
+        haptic("ok");
+        toast("💬 Izoh qo'shildi");
+        loadComments(mid);
+        state.mods.forEach(function(m){ if(m.id===mid) m.comments = (m.comments||0)+1; });
+      });
+      break;
+    }
+    case "del-comment": {
+      api("/api/admin/comment_delete", {mod_id:el.dataset.id, index:Number(el.dataset.index)}).then(function(r){
+        if(r.ok){ toast("🗑️ Izoh o'chirildi"); loadComments(el.dataset.id); }
+        else toast(r.error || "Xatolik", true);
+      });
+      break;
+    }
+    case "theme": {
+      var th = el.dataset.theme;
+      state.settings.theme = th;
+      applyTheme(th);
+      api("/api/settings", {theme:th});
+      renderSettings();
+      break;
+    }
+    case "toggle-bg": {
+      state.settings.bg = !state.settings.bg;
+      applyBg(state.settings.bg);
+      api("/api/settings", {bg:state.settings.bg});
+      renderSettings();
+      break;
+    }
+    case "toggle-sound": {
+      state.settings.sound = !state.settings.sound;
+      api("/api/settings", {sound:state.settings.sound});
+      renderSettings();
+      if(state.settings.sound) playClick();
+      break;
+    }
+    case "check-sub": {
+      el.disabled = true;
+      api("/api/check_sub").then(function(r){
+        if(r.ok && r.subscribed){
+          state.subscribed = true;
+          state.channels = r.channels || state.channels;
+          haptic("ok");
+          toast("✅ Obuna tasdiqlandi!");
+          buildNav();
+          setTab("mods");
+        } else {
+          toast("❌ Hali obuna bo'lmadingiz", true);
+          el.disabled = false;
+        }
+      }).catch(function(){ el.disabled = false; toast("Xatolik", true); });
+      break;
+    }
+    case "pick-avatar": $("avatarInput").click(); break;
+    case "copy-ref": {
+      var ref = "https://t.me/" + state.bot_username + "?start=ref_" + state.user.id;
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(ref).then(function(){ toast("📋 Nusxalandi"); });
+      } else {
+        var ta = document.createElement("textarea");
+        ta.value = ref; document.body.appendChild(ta); ta.select();
+        try{ document.execCommand("copy"); toast("📋 Nusxalandi"); }catch(e){ toast(ref); }
+        ta.remove();
+      }
+      break;
+    }
+    case "open-support": openSupport(); break;
+    case "send-support": {
+      var st = $("supportText");
+      if(!st || !st.value.trim()) return;
+      el.disabled = true;
+      api("/api/contact", {text:st.value.trim()}).then(function(r){
+        if(r.ok){ closeModal(); haptic("ok"); toast("📩 Xabar adminga yuborildi"); }
+        else { toast(r.error || "Xatolik", true); el.disabled = false; }
+      });
+      break;
+    }
+    case "admin-refresh": loadAdmin(); toast("🔄 Yangilanmoqda..."); break;
+    case "add-mod": openAddMod(); break;
+    case "edit-mod": openEditMod(el.dataset.id); break;
+    case "delete-mod": {
+      var dm = state.mods.filter(function(x){ return x.id === el.dataset.id; })[0];
+      ask('"' + (dm ? dm.name : "Mod") + '" o\'chirilsinmi? Bu amalni qaytarib bo\'lmaydi.').then(function(yes){
+        if(!yes) return;
+        api("/api/admin/mod_delete", {mod_id:el.dataset.id}).then(function(r){
+          if(!r.ok){ toast(r.error || "Xatolik", true); return; }
+          state.mods = state.mods.filter(function(x){ return x.id !== el.dataset.id; });
+          state.favorites = state.favorites.filter(function(f){ return f !== el.dataset.id; });
+          toast("🗑️ Mod o'chirildi");
+          renderAdmin(); renderMods();
+        });
+      });
+      break;
+    }
+    case "publish-mod": {
+      api("/api/admin/mod_publish", {mod_id:el.dataset.id}).then(function(r){
+        if(r.ok){ haptic("ok"); toast("📢 Kanalga joylandi!"); }
+        else toast(r.error || "Kanalga joylashda xatolik", true);
+      });
+      break;
+    }
+    case "broadcast": openBroadcast(); break;
+    case "send-broadcast": {
+      var bt = $("bcText");
+      if(!bt || !bt.value.trim()) return;
+      el.disabled = true; el.innerHTML = '<span class="spinner"></span> Yuborilmoqda...';
+      api("/api/admin/broadcast", {text:bt.value.trim()}).then(function(r){
+        if(r.ok){
+          closeModal();
+          toast("🚀 " + fmt(r.total) + " kishiga yuborish boshlandi");
+        } else {
+          toast(r.error || "Xatolik", true);
+          el.disabled = false; el.textContent = "🚀 Yuborish";
+        }
+      });
+      break;
+    }
+    case "channels": openChannels(); break;
+    case "channel-add": {
+      var nc = $("newChannel");
+      if(!nc || !nc.value.trim()) return;
+      api("/api/admin/channel_add", {channel:nc.value.trim()}).then(function(r){
+        if(!r.ok){ toast(r.error || "Xatolik", true); return; }
+        state.channels = r.channels;
+        if(state.stats) state.stats.channels = r.channels;
+        toast("✅ Kanal qo'shildi");
+        openChannels();
+      });
+      break;
+    }
+    case "channel-del": {
+      api("/api/admin/channel_del", {channel:el.dataset.ch}).then(function(r){
+        if(!r.ok){ toast(r.error || "Xatolik", true); return; }
+        state.channels = r.channels;
+        if(state.stats) state.stats.channels = r.channels;
+        toast("🗑️ Kanal olib tashlandi");
+        openChannels();
+      });
+      break;
+    }
+    case "block": openBlock(); break;
+    case "block-submit": {
+      var bi = $("blockId");
+      if(!bi || !bi.value.trim()) return;
+      api("/api/admin/block", {user_id:bi.value.trim()}).then(function(r){
+        if(!r.ok){ toast(r.error || "Xatolik", true); return; }
+        haptic("ok");
+        toast("🚫 Bloklandi");
+        loadAdmin().then(openBlock);
+      });
+      break;
+    }
+    case "unblock": {
+      api("/api/admin/unblock", {user_id:el.dataset.id}).then(function(r){
+        if(!r.ok){ toast(r.error || "Xatolik", true); return; }
+        toast("✅ Blokdan chiqarildi");
+        loadAdmin().then(function(){
+          if($("blockId")) openBlock();
+          if($("userSearch")) loadUsers($("userSearch").value.trim());
+        });
+      });
+      break;
+    }
+    case "user-block": {
+      api("/api/admin/block", {user_id:el.dataset.id}).then(function(r){
+        if(!r.ok){ toast(r.error || "Xatolik", true); return; }
+        toast("🚫 Bloklandi");
+        loadAdmin().then(function(){
+          if($("userSearch")) loadUsers($("userSearch").value.trim());
+        });
+      });
+      break;
+    }
+    case "users": openUsers(); break;
+    case "groups": openGroups(); break;
+    case "admins": openAdmins(); break;
+    case "admin-add": {
+      var ai = $("adminId");
+      if(!ai || !ai.value.trim()) return;
+      api("/api/admin/admin_add", {user_id:ai.value.trim()}).then(function(r){
+        if(!r.ok){ toast(r.error || "Xatolik", true); return; }
+        if(state.stats) state.stats.admins = r.admins;
+        toast("✅ Admin qo'shildi");
+        openAdmins();
+      });
+      break;
+    }
+    case "admin-del": {
+      api("/api/admin/admin_del", {user_id:el.dataset.id}).then(function(r){
+        if(!r.ok){ toast(r.error || "Xatolik", true); return; }
+        if(state.stats) state.stats.admins = r.admins;
+        toast("🗑️ Admin olib tashlandi");
+        openAdmins();
+      });
+      break;
+    }
+    case "close-modal": closeModal(); break;
+  }
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click", function(e){
+  var el = e.target.closest("[data-action]");
+  if(!el) return;
+  e.preventDefault();
+  try{ playClick(); handleAction(el.dataset.action, el); }
+  catch(err){ console.error(err); toast("Xatolik yuz berdi", true); }
+});
+modalWrap.addEventListener("click", function(e){
+  if(e.target === modalWrap) closeModal();
+});
+document.addEventListener("input", function(e){
+  if(e.target.id === "modSearch"){
+    state.q = e.target.value.trim().toLowerCase();
+    renderModGrid();
+  }
+  if(e.target.id === "userSearch"){
+    loadUsers(e.target.value.trim());
+  }
+  if(e.target.id === "modPhotos"){
+    var prev = $("photoPreview");
+    if(!prev) return;
+    var files = Array.prototype.slice.call(e.target.files, 0, 5);
+    prev.innerHTML = files.map(function(f){
+      if(!/^image\//.test(f.type)) return "";
+      return '<img src="' + URL.createObjectURL(f) + '" alt="">';
+    }).join("");
+  }
+});
+document.addEventListener("submit", function(e){
+  if(e.target.id === "addModForm"){ e.preventDefault(); submitModForm(e.target); }
+  if(e.target.id === "editModForm"){ e.preventDefault(); submitEditForm(e.target); }
+});
+$("avatarInput").addEventListener("change", function(e){
+  var f = e.target.files && e.target.files[0];
+  if(!f) return;
+  if(f.size > 6 * 1024 * 1024){ toast("Rasm 6MB dan kichik bo'lsin", true); return; }
+  var fd = new FormData();
+  fd.append("avatar", f, f.name || "avatar.jpg");
+  toast("⏳ Rasm yuklanmoqda...");
+  apiForm("/api/avatar", fd).then(function(r){
+    if(!r.ok){ toast(r.error || "Xatolik", true); return; }
+    state.user.avatar = r.avatar;
+    haptic("ok");
+    toast("✅ Profil rasmi yangilandi");
+    renderProfile();
+  }).catch(function(){ toast("Yuklashda xatolik", true); });
+  e.target.value = "";
+});
+
+document.addEventListener("keydown", function(e){
+  if(e.key === "Escape"){
+    if(modalWrap.classList.contains("open")) closeModal();
+    else if(sheet.classList.contains("open")) closeSheet();
+  }
+  if(e.key === "Enter" && e.target.id === "cmInput"){
+    var btn = sheet.querySelector('[data-action="send-comment"]');
+    if(btn) btn.click();
+  }
+});
+
+boot();
+})();
+</script>
+</body>
+</html>
