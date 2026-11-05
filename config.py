@@ -25,6 +25,9 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 ADMIN_IDS = [int(x) for x in os.environ.get("ADMIN_IDS", "7667103099").split(",") if x.strip()]
 CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "UZBMINECRAFTMODLAR")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "@UZBMINECRAFTMODLAR")
+# Ixtiyoriy: zaxira saqlanadigan yopiq guruh (bot admin bo'lishi shart).
+# Bo'sh bo'lsa zaxira ADMIN_IDS[0] ga yuboriladi.
+BACKUP_CHAT_ID = os.environ.get("BACKUP_CHAT_ID", "").strip()
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "UZBMCBOT")
 SUPPORT_USERNAME = os.environ.get("SUPPORT_USERNAME", "Cayouz")
 WEBAPP_URL = (os.environ.get("WEBAPP_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "").rstrip("/")

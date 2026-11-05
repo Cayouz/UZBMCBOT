@@ -173,8 +173,10 @@ def send_message(chat_id, text, keyboard=None):
     return api_request("sendMessage", params)
 
 
-def send_photo(chat_id, photo, caption="", keyboard=None):
+def send_photo(chat_id, photo, caption="", keyboard=None, silent=False):
     params = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
+    if silent:
+        params["disable_notification"] = "true"
     if keyboard is not None:
         params["reply_markup"] = json.dumps(keyboard)
     if isinstance(photo, str) and os.path.exists(photo):
@@ -184,7 +186,7 @@ def send_photo(chat_id, photo, caption="", keyboard=None):
     return api_request("sendPhoto", params=params)
 
 
-def send_media_group(chat_id, photos, caption=""):
+def send_media_group(chat_id, photos, caption="", silent=False):
     """photos: list of dict {file_id, path} yoki list[str] (file_id/path)."""
     items = []
     files = {}
@@ -217,6 +219,8 @@ def send_media_group(chat_id, photos, caption=""):
             items[0]["caption"] = caption
             items[0]["parse_mode"] = "HTML"
         params = {"chat_id": chat_id, "media": json.dumps(items)}
+        if silent:
+            params["disable_notification"] = "true"
         return api_request("sendMediaGroup", params=params, files=files or None)
     finally:
         for f in files.values():
@@ -226,13 +230,32 @@ def send_media_group(chat_id, photos, caption=""):
                 pass
 
 
-def send_document(chat_id, document, caption=""):
+def send_document(chat_id, document, caption="", silent=False):
     params = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
+    if silent:
+        params["disable_notification"] = "true"
     if isinstance(document, str) and os.path.exists(document):
         with open(document, "rb") as f:
             return api_request("sendDocument", params=params, files={"document": f})
     params["document"] = document
     return api_request("sendDocument", params=params)
+
+
+def pin_message(chat_id, message_id):
+    return api_request("pinChatMessage", {"chat_id": chat_id, "message_id": message_id,
+                                          "disable_notification": "true"})
+
+
+def unpin_all(chat_id):
+    return api_request("unpinAllChatMessages", {"chat_id": chat_id})
+
+
+def get_chat(chat_id, timeout=20):
+    return api_request("getChat", {"chat_id": chat_id}, timeout=timeout)
+
+
+def get_chat_member(chat_id, user_id):
+    return api_request("getChatMember", {"chat_id": chat_id, "user_id": user_id})
 
 
 def edit_message(chat_id, message_id, text, keyboard=None):

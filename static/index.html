@@ -910,10 +910,9 @@ function renderAdmin(){
       '<button data-action="admins"><span class="qi">👤</span> Adminlar</button>' +
       '<button data-action="users"><span class="qi">👥</span> Jonli foydalanuvchilar</button>' +
       '<button data-action="groups"><span class="qi">🌐</span> Guruhlar</button>' +
-      '<a class="btn" style="justify-content:flex-start;gap:9px;padding:12px;font-size:12.5px" ' +
-        'href="/api/admin/backup?init_data=' + encodeURIComponent((tg && tg.initData) || "") +
-        (DEV ? '&dev_user=' + encodeURIComponent(DEV) : '') + '"><span class="qi" style="font-size:18px">💾</span> Zaxira olish</a>' +
+      '<button data-action="backup"><span class="qi">💾</span> Zaxira olish</button>' +
     '</div>' +
+    '<div class="muted small" style="margin:-4px 2px 10px">💾 Zaxira fayli bot orqali Telegram\'ga yuboriladi va pin qilinadi.</div>' +
     '<div class="section-title"><h2>📦 Modlarni boshqarish</h2><span class="count">' + state.mods.length + ' ta</span></div>' +
     '<div class="card" id="adminMods">' + adminModsHTML() + '</div>' +
     (groups.length
@@ -1259,6 +1258,16 @@ function handleAction(a, el){
       break;
     }
     case "admin-refresh": loadAdmin(); toast("🔄 Yangilanmoqda..."); break;
+    case "backup": {
+      el.disabled = true;
+      toast("⏳ Zaxira Telegram'ga yuborilmoqda...");
+      api("/api/admin/backup").then(function(r){
+        el.disabled = false;
+        if(r && r.ok){ haptic("ok"); toast("✅ Zaxira botga yuborildi va pin qilindi"); }
+        else toast((r && r.error) || "Zaxira yuborilmadi", true);
+      }).catch(function(){ el.disabled = false; toast("Tarmoq xatosi", true); });
+      break;
+    }
     case "add-mod": openAddMod(); break;
     case "edit-mod": openEditMod(el.dataset.id); break;
     case "delete-mod": {

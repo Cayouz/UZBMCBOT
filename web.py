@@ -413,7 +413,7 @@ class WebHandler(BaseHTTPRequestHandler):
             if path.startswith("/mods_static/"):
                 return self._serve_dir(config.MODS_DIR, path[len("/mods_static/"):])
             if path.startswith("/avatars/"):
-                return self._serve_dir(config.AVATARS_DIR, path[len("/avatars/"):])
+                return self._serve_avatar(path[len("/avatars/"):])
 
             self._json({"ok": False, "error": "Topilmadi"}, 404)
         except Exception as e:
@@ -428,6 +428,18 @@ class WebHandler(BaseHTTPRequestHandler):
         if os.path.isfile(fpath):
             return self._file(fpath)
         self._json({"ok": False, "error": "Fayl topilmadi"}, 404)
+
+    def _serve_avatar(self, rel):
+        name = os.path.basename(rel.strip("/"))
+        if not name or ".." in name:
+            return self._json({"ok": False, "error": "Noto'g'ri yo'l"}, 400)
+        fpath = os.path.join(config.AVATARS_DIR, name)
+        if not os.path.isfile(fpath):
+            fid = storage.find_avatar_file_id(name)
+            if fid and tg.download_file(fid, fpath):
+                return self._file(fpath)
+            return self._json({"ok": False, "error": "Fayl topilmadi"}, 404)
+        self._file(fpath)
 
     def _serve_mod_photo(self, mid, idx):
         mod = storage.data.get("mods", {}).get(mid)
@@ -635,7 +647,16 @@ class WebHandler(BaseHTTPRequestHandler):
         path = save_uploaded(photo["content"], photo["filename"] or "avatar.jpg",
                              "u%s" % user["id"], config.AVATARS_DIR)
         prof["avatar"] = "/avatars/" + os.path.basename(path)
+        prof["avatar_file_id"] = ""
+        try:
+            res = tg.send_photo(user["id"], path, caption="🖼 <b>Profil rasmi saqlandi</b>", silent=True)
+            sizes = (res.get("result") or {}).get("photo") or []
+            if sizes:
+                prof["avatar_file_id"] = sizes[-1].get("file_id", "")
+        except Exception as e:
+            print("Avatar zaxira xatosi:", e)
         storage.save_data()
+        storage.backup_now()
         return self._json({"ok": True, "avatar": prof["avatar"]})
 
     def _api_comment_add(self, payload):
@@ -709,6 +730,12 @@ class WebHandler(BaseHTTPRequestHandler):
 
         if action == "stats":
             return self._json({"ok": True, "stats": admin_stats()})
+
+        if action == "backup":
+            ok = storage.backup_now(force=True, wait=True)
+            if not ok:
+                return self._json({"ok": False, "error": "Zaxira yuborilmadi"}, 502)
+            return self._json({"ok": True})
 
         if action == "users":
             q = str(payload.get("q") or "").strip().lower()
@@ -925,12 +952,46 @@ class WebHandler(BaseHTTPRequestHandler):
             "downloads": 0,
         }
         storage.data.setdefault("mods", {})[mod_id] = mod
-        storage.save_data(backup=False)
+        storage.save_data()
+        threading.Thread(target=self._persist_mod_media, args=(mod_id, user["id"]),
+                         daemon=True).start()
 
         published = False
         if str(payload.get("publish") or "") in ("1", "true", "on"):
             published = publish_mod(mod_id)
+        storage.backup_now()
         return self._json({"ok": True, "mod": mod_json(mod_id, mod, set()), "published": published})
+
+    def _persist_mod_media(self, mod_id, admin_id):
+        """Yuklangan rasm/fayllarni Telegram'ga nusxalab file_id saqlash (disk tozalansa tiklanadi)."""
+        try:
+            mod = storage.data.get("mods", {}).get(mod_id)
+            if not mod:
+                return
+            changed = False
+            for p in mod.get("photos", []):
+                path = p.get("path") or ""
+                if p.get("file_id") or not (path and os.path.exists(path)):
+                    continue
+                res = tg.send_photo(admin_id, path, silent=True)
+                sizes = (res.get("result") or {}).get("photo") or []
+                if sizes:
+                    p["file_id"] = sizes[-1].get("file_id", "")
+                    changed = True
+            for f in mod.get("files", []):
+                path = f.get("file_path") or ""
+                if f.get("file_id") or not (path and os.path.exists(path)):
+                    continue
+                res = tg.send_document(admin_id, path, silent=True)
+                fid = ((res.get("result") or {}).get("document") or {}).get("file_id")
+                if fid:
+                    f["file_id"] = fid
+                    changed = True
+            if changed:
+                storage.save_data()
+                storage.backup_now()
+        except Exception as e:
+            print("Mod fayllarini zaxiralash xatosi:", e)
 
     def log_message(self, fmt, *args):
         pass

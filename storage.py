@@ -12,6 +12,18 @@ data = {}
 _web_visits = {}
 _web_lock = threading.Lock()
 _dirty = {}
+_backup = {"ts": 0}
+_restored = {"done": False}
+
+
+def backup_target():
+    if config.BACKUP_CHAT_ID:
+        return config.BACKUP_CHAT_ID
+    return config.ADMIN_IDS[0] if config.ADMIN_IDS else 0
+
+
+def was_restored():
+    return _restored["done"]
 
 
 def _default_data():
@@ -52,7 +64,41 @@ def load_data():
                 print("data.json bo'sh yoki buzuq — yangidan tiklandi.")
             except Exception as e:
                 print("Data yuklash ogohlantirish:", e)
-        return _default_data()
+    d = _restore_from_telegram()
+    if d is not None:
+        return d
+    return _default_data()
+
+
+def _restore_from_telegram():
+    """Render diski tozalanganda oxirgi zaxirani Telegram'dan qaytarish."""
+    if not backup_target() or not config.BOT_TOKEN:
+        return None
+    try:
+        import tg
+        res = tg.get_chat(backup_target())
+        if not res.get("ok"):
+            return None
+        msg = (res.get("result") or {}).get("pinned_message") or {}
+        fid = (msg.get("document") or {}).get("file_id") or ""
+        if not fid:
+            return None
+        tmp = config.DATA_FILE + ".restore"
+        if not tg.download_file(fid, tmp):
+            return None
+        with open(tmp, "r", encoding="utf-8-sig") as f:
+            d = json.loads(f.read())
+        if not isinstance(d, dict) or "mods" not in d:
+            return None
+        for k, v in _default_data().items():
+            d.setdefault(k, v)
+        os.replace(tmp, config.DATA_FILE)
+        _restored["done"] = True
+        print("Telegram zaxirasidan tiklandi.")
+        return d
+    except Exception as e:
+        print("Telegram'dan tiklash ogohlantirish:", e)
+    return None
 
 
 def save_data(backup=False):
@@ -65,18 +111,60 @@ def save_data(backup=False):
         except Exception as e:
             print("Data saqlash xatosi:", e)
     if backup:
-        try:
-            import tg
-            admin_id = config.ADMIN_IDS[0]
-            def _bg():
-                try:
-                    tg.send_document(admin_id, config.DATA_FILE,
-                                     caption="💾 <b>ZAXIRA:</b> Barcha modlar va ma'lumotlar saqlandi.")
-                except Exception as e2:
-                    print("Auto backup error:", e2)
-            threading.Thread(target=_bg, daemon=True).start()
-        except Exception:
-            pass
+        backup_now()
+
+
+def backup_now(admin_id=None, caption=None, force=False, wait=False):
+    """data.json ni Telegram'ga yuborib pin qilish. 2 daqiqada bir martadan ko'p emas."""
+    with _lock:
+        now = _ts()
+        if not force and now - _backup["ts"] < 120:
+            return False
+        _backup["ts"] = now
+    try:
+        save_data()
+        import tg
+        admin_id = admin_id or backup_target()
+        if not admin_id:
+            return False
+        text = caption or ("💾 <b>ZAXIRA</b> — %s\n📦 Modlar: %d ta | 👥 Foydalanuvchilar: %d ta"
+                           % (_now(), len(data.get("mods", {})), len(data.get("users", {}))))
+
+        def _send():
+            try:
+                res = tg.send_document(admin_id, config.DATA_FILE, caption=text, silent=True)
+                if not res.get("ok"):
+                    print("Backup yuborilmadi:", res.get("description") or res.get("error"))
+                    return False
+                mid = (res.get("result") or {}).get("message_id")
+                if mid:
+                    tg.unpin_all(admin_id)
+                    tg.pin_message(admin_id, mid)
+                return True
+            except Exception as e:
+                print("Backup yuborish xatosi:", e)
+                return False
+
+        if wait:
+            return bool(_send())
+        threading.Thread(target=_send, daemon=True).start()
+        return True
+    except Exception as e:
+        print("Backup xatosi:", e)
+        return False
+
+
+def backup_signature():
+    """Zaxira kerakmi? last_seen kabi tez o'zgaradigan maydonlar hisobga olinmaydi."""
+    try:
+        users = {}
+        for uid, u in data.get("users", {}).items():
+            users[uid] = {k: v for k, v in u.items() if k != "last_seen"}
+        snapshot = {k: v for k, v in data.items() if k not in ("states", "users")}
+        snapshot["users"] = users
+        return json.dumps(snapshot, sort_keys=True, ensure_ascii=False)
+    except Exception:
+        return ""
 
 
 def migrate():
@@ -117,6 +205,9 @@ def migrate():
     for gid, g in data.setdefault("groups", {}).items():
         if "status" not in g:
             g["status"] = "active"
+            changed = True
+        if "is_admin" not in g:
+            g["is_admin"] = False
             changed = True
 
     data.setdefault("blocked", {})
@@ -262,7 +353,19 @@ def set_settings(user_id, settings):
         if k in settings:
             cur[k] = settings[k]
     save_data()
+    backup_now()
     return cur
+
+
+def find_avatar_file_id(file_name):
+    """Avatar fayli diskdan o'chgan bo'lsa, Telegram'dagi nusxasini topish."""
+    name = os.path.basename(file_name or "")
+    if not name:
+        return ""
+    for u in data.get("users", {}).values():
+        if os.path.basename(u.get("avatar") or "") == name:
+            return u.get("avatar_file_id") or ""
+    return ""
 
 
 def live_users_count(days=None):
@@ -279,10 +382,11 @@ def live_users_count(days=None):
 
 
 def live_groups():
-    return {gid: g for gid, g in data.get("groups", {}).items() if g.get("status", "active") == "active"}
+    return {gid: g for gid, g in data.get("groups", {}).items()
+            if g.get("status", "active") == "active" and g.get("is_admin")}
 
 
-def track_group(chat):
+def track_group(chat, is_admin=None):
     if chat.get("type") not in ("group", "supergroup"):
         return
     gid = str(chat["id"])
@@ -290,11 +394,28 @@ def track_group(chat):
     groups = data.setdefault("groups", {})
     g = groups.get(gid)
     if not g:
-        groups[gid] = {"title": title, "date": _now(), "status": "active"}
+        groups[gid] = {"title": title, "date": _now(), "status": "active",
+                       "is_admin": bool(is_admin)}
         save_data()
-    elif g.get("title") != title or g.get("status") != "active":
+        return
+    changed = False
+    if g.get("title") != title:
         g["title"] = title
+        changed = True
+    if g.get("status") != "active":
         g["status"] = "active"
+        changed = True
+    if is_admin is not None and g.get("is_admin") != bool(is_admin):
+        g["is_admin"] = bool(is_admin)
+        changed = True
+    if changed:
+        save_data()
+
+
+def set_group_admin(chat_id, is_admin):
+    g = data.get("groups", {}).get(str(chat_id))
+    if g is not None and g.get("is_admin") != bool(is_admin):
+        g["is_admin"] = bool(is_admin)
         save_data()
 
 
@@ -303,6 +424,7 @@ def untrack_group(chat_id):
     g = data.get("groups", {}).get(gid)
     if g:
         g["status"] = "removed"
+        g["is_admin"] = False
         save_data()
 
 

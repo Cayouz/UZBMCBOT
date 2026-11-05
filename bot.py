@@ -13,6 +13,50 @@ import tg
 PAGE_SIZE = 8
 BLOCKED_MSG = "Siz bloklangansiz iltimos admin bilan bo'g'laning : @" + config.SUPPORT_USERNAME
 
+_bot_id = {"id": 0}
+_group_admin_cache = {}
+
+
+def bot_identity():
+    if not _bot_id["id"]:
+        res = tg.api_request("getMe")
+        if res.get("ok"):
+            _bot_id["id"] = res["result"].get("id", 0)
+    return _bot_id["id"]
+
+
+def check_bot_admin(chat_id, refresh=False):
+    """Bot shu guruhda adminmi? 5 daqiqa kesh, chiqarib yuborilsa darhol o'chadi."""
+    key = str(chat_id)
+    now = time.time()
+    cached = _group_admin_cache.get(key)
+    if cached and not refresh and now - cached[0] < 300:
+        return cached[1]
+    bid = bot_identity()
+    if not bid:
+        return bool(cached and cached[1])
+    res = tg.api_request("getChatMember", {"chat_id": chat_id, "user_id": bid})
+    status = (res.get("result") or {}).get("status", "") if res.get("ok") else ""
+    if status in ("left", "kicked"):
+        storage.untrack_group(chat_id)
+        _group_admin_cache.pop(key, None)
+        return False
+    ok = status in ("administrator", "creator")
+    storage.set_group_admin(chat_id, ok)
+    _group_admin_cache[key] = (now, ok)
+    return ok
+
+
+def refresh_groups():
+    for gid in list(storage.data.get("groups", {}).keys()):
+        g = storage.data["groups"].get(gid) or {}
+        if g.get("status") != "active":
+            continue
+        try:
+            check_bot_admin(gid, refresh=True)
+        except Exception as e:
+            print("Guruh tekshiruvi xatosi (%s): %s" % (gid, e))
+
 
 # ============ KLAVIATURALAR ============
 def main_keyboard(admin=False):
@@ -480,7 +524,7 @@ def handle_message(message):
     if is_private:
         storage.track_user(user_id, user_name, username=username)
     else:
-        storage.track_group(chat)
+        storage.track_group(chat, check_bot_admin(chat_id))
 
     if not is_private and not text:
         return
@@ -819,11 +863,16 @@ def handle_my_chat_member(upd):
     chat = upd.get("chat", {})
     new = upd.get("new_chat_member", {})
     status = new.get("status", "")
-    if chat.get("type") in ("group", "supergroup"):
-        if status in ("left", "kicked"):
-            storage.untrack_group(chat.get("id"))
-        else:
-            storage.track_group(chat)
+    if chat.get("type") not in ("group", "supergroup"):
+        return
+    chat_id = chat.get("id")
+    if status in ("left", "kicked"):
+        storage.untrack_group(chat_id)
+        _group_admin_cache.pop(str(chat_id), None)
+        return
+    ok = status in ("administrator", "creator")
+    storage.track_group(chat, ok)
+    _group_admin_cache[str(chat_id)] = (time.time(), ok)
 
 
 def handle_callback(cq):
@@ -1171,9 +1220,8 @@ def handle_callback(cq):
         return
 
     if cb == "panel_backup":
-        tg.send_document(chat_id, config.DATA_FILE,
-                         caption="💾 <b>ZAXIRA:</b> Barcha modlar va ma'lumotlar saqlandi.")
-        tg.answer_callback(cb_id, "💾 Zaxira yuborildi!")
+        ok = storage.backup_now(force=True, wait=True)
+        tg.answer_callback(cb_id, "💾 Zaxira yuborildi va pin qilindi!" if ok else "❌ Zaxira yuborilmadi")
         return
 
     if cb in ("panel_back", "panel_refresh"):
@@ -1189,6 +1237,19 @@ def handle_callback(cq):
     tg.answer_callback(cb_id)
 
 
+# ============ AUTO BACKUP ============
+def auto_backup_loop(interval=300):
+    last = ""
+    while True:
+        time.sleep(interval)
+        try:
+            sig = storage.backup_signature()
+            if sig != last and storage.backup_now(wait=True):
+                last = sig
+        except Exception as e:
+            print("Auto backup xatosi:", e)
+
+
 # ============ POLLING ============
 def run_bot():
     print("Bot polling boshlandi...")
@@ -1198,6 +1259,17 @@ def run_bot():
             tg.set_chat_menu_button(config.WEBAPP_URL)
     except Exception:
         pass
+    threading.Thread(target=refresh_groups, daemon=True).start()
+    threading.Thread(target=auto_backup_loop, daemon=True).start()
+    if (not storage.was_restored() and not storage.data.get("mods")
+            and not storage.data.get("users")):
+        try:
+            tg.send_message(config.ADMIN_IDS[0],
+                            "⚠️ <b>Ma'lumotlar topilmadi</b>\n\n"
+                            "Agar avval zaxira olgan bo'lsangiz, oxirgi <b>data.json</b> "
+                            "faylini shu botga forward qiling — hammasi tiklanadi.")
+        except Exception:
+            pass
     offset = 0
     while True:
         try:
