@@ -357,6 +357,21 @@ class WebHandler(BaseHTTPRequestHandler):
             data = {}
         return (data if isinstance(data, dict) else {}), []
 
+    # ---------- HEAD (uptime monitorlar uchun) ----------
+    def do_HEAD(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = urllib.parse.unquote(parsed.path)
+        status = 200 if path in ("/", "/index.html", "/api/health") else 404
+        self.send_response(status)
+        if status == 200:
+            ctype = "application/json; charset=utf-8" if path == "/api/health" else "text/html; charset=utf-8"
+            self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", "0")
+        self.send_header("Connection", "close")
+        self.send_header("Cache-Control", "no-store")
+        self.close_connection = True
+        self.end_headers()
+
     # ---------- GET ----------
     def do_GET(self):
         try:
