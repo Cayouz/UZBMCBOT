@@ -472,6 +472,8 @@ class WebHandler(BaseHTTPRequestHandler):
                 return self._api_avatar(payload, files)
             if path == "/api/comments":
                 return self._api_comment_add(payload)
+            if path == "/api/download":
+                return self._api_download(payload)
             if path == "/api/check_sub":
                 return self._api_check_sub(payload)
             if path == "/api/contact":
@@ -548,6 +550,48 @@ class WebHandler(BaseHTTPRequestHandler):
             "bg": payload.get("bg"),
         })
         return self._json({"ok": True, "settings": settings})
+
+    def _api_download(self, payload):
+        user = auth(payload)
+        if not user:
+            return self._json({"ok": False, "error": "Avtorizatsiya xatosi"}, 401)
+        if is_blocked_now(user["id"]):
+            return self._json({"ok": False, "blocked": True, "error": "Bloklangansiz"}, 403)
+        if not subscribed(user["id"]):
+            return self._json({"ok": False, "forced_sub": True,
+                               "error": "Avval kanallarga obuna bo'ling"}, 403)
+        mid = str(payload.get("mod_id") or "")
+        mod = storage.data.get("mods", {}).get(mid)
+        if not mod:
+            return self._json({"ok": False, "error": "Mod topilmadi"}, 404)
+        files = mod.get("files", []) or []
+        if not files:
+            return self._json({"ok": False, "error": "Fayl biriktirilmagan"}, 404)
+        try:
+            idx = int(payload.get("file"))
+        except Exception:
+            idx = -1
+        items = [files[idx]] if 0 <= idx < len(files) else files[:10]
+        sent, last_err = 0, ""
+        for f in items:
+            path = f.get("file_path") or ""
+            fid = f.get("file_id") or ""
+            if path and os.path.exists(path):
+                res = tg.send_document(user["id"], path)
+            elif fid:
+                res = tg.send_document(user["id"], fid)
+            else:
+                last_err = last_err or "Fayl serverda yo'q"
+                continue
+            if res.get("ok"):
+                sent += 1
+            else:
+                last_err = res.get("description") or res.get("error") or "Telegram xatosi"
+        if not sent:
+            return self._json({"ok": False, "error": last_err or "Yuborishda xatolik"}, 502)
+        mod["downloads"] = mod.get("downloads", 0) + 1
+        storage.save_data()
+        return self._json({"ok": True, "sent": sent, "total": len(items)})
 
     def _api_avatar(self, payload, files):
         user = auth(payload)

@@ -758,12 +758,21 @@ function toggleFav(id){
 }
 function downloadFile(mid, idx){
   haptic("light");
-  var url = "/download/" + encodeURIComponent(mid) + "/" + idx;
-  try{
-    if(tg && tg.openLink) tg.openLink(url);
-    else window.location.href = url;
-  }catch(e){ window.location.href = url; }
-  toast("⬇️ Yuklab olish boshlandi");
+  toast("⏳ Telegram'ga yuborilmoqda...");
+  api("/api/download", {mod_id:mid, file:idx}).then(function(r){
+    if(r && r.ok){
+      haptic("ok");
+      toast("✅ Fayl Telegram'ga yuborildi");
+    } else if(r && r.forced_sub){
+      state.subscribed = false;
+      renderGate();
+      toast("Avval kanallarga obuna bo'ling", true);
+    } else {
+      toast((r && r.error) || "Yuborishda xatolik", true);
+    }
+  }).catch(function(){
+    toast("Tarmoq xatosi", true);
+  });
 }
 
 /* ---------- settings ---------- */
