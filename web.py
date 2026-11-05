@@ -36,13 +36,17 @@ def parse_init_data(init_data):
         return None
     data = dict(pairs)
     received = data.pop("hash", "")
-    data.pop("signature", None)
+    signature = data.pop("signature", None)
     if not received:
         return None
-    check_string = "\n".join("%s=%s" % (k, v) for k, v in sorted(data.items()))
     secret = hmac.new(b"WebAppData", config.BOT_TOKEN.encode("utf-8"), hashlib.sha256).digest()
-    calc = hmac.new(secret, check_string.encode("utf-8"), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(calc, received):
+
+    def _check(fields):
+        check_string = "\n".join("%s=%s" % (k, v) for k, v in sorted(fields.items()))
+        calc = hmac.new(secret, check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(calc, received)
+
+    if not _check(data) and not (signature is not None and _check(dict(data, signature=signature))):
         return None
     try:
         user = json.loads(data.get("user") or "{}")
