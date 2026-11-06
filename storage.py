@@ -37,6 +37,7 @@ def _default_data():
         "replies": {},
         "comments": {},
         "blocked": {},
+        "messages": {},
     }
 
 
@@ -152,19 +153,6 @@ def backup_now(admin_id=None, caption=None, force=False, wait=False):
     except Exception as e:
         print("Backup xatosi:", e)
         return False
-
-
-def backup_signature():
-    """Zaxira kerakmi? last_seen kabi tez o'zgaradigan maydonlar hisobga olinmaydi."""
-    try:
-        users = {}
-        for uid, u in data.get("users", {}).items():
-            users[uid] = {k: v for k, v in u.items() if k != "last_seen"}
-        snapshot = {k: v for k, v in data.items() if k not in ("states", "users")}
-        snapshot["users"] = users
-        return json.dumps(snapshot, sort_keys=True, ensure_ascii=False)
-    except Exception:
-        return ""
 
 
 def migrate():
@@ -349,12 +337,40 @@ def set_settings(user_id, settings):
     if not user:
         return None
     cur = user.setdefault("settings", {"theme": "dark", "sound": True, "bg": True})
-    for k in ("theme", "sound", "bg"):
-        if k in settings:
+    for k in ("theme", "sound", "bg", "lang", "font"):
+        if k in settings and settings[k] is not None:
             cur[k] = settings[k]
     save_data()
-    backup_now()
     return cur
+
+
+# ---------------- XABARLAR (site chat) ----------------
+def add_message(user_id, frm, text):
+    box = data.setdefault("messages", {}).setdefault(str(user_id), [])
+    box.append({"from": frm, "text": str(text)[:1500], "date": _now(), "read": frm == "user"})
+    save_data()
+
+
+def get_messages(user_id):
+    return list(data.get("messages", {}).get(str(user_id), []))
+
+
+def unread_messages(user_id):
+    return sum(1 for m in data.get("messages", {}).get(str(user_id), [])
+               if m.get("from") == "admin" and not m.get("read"))
+
+
+def mark_messages_read(user_id):
+    box = data.get("messages", {}).get(str(user_id))
+    if not box:
+        return
+    changed = False
+    for m in box:
+        if m.get("from") == "admin" and not m.get("read"):
+            m["read"] = True
+            changed = True
+    if changed:
+        save_data()
 
 
 def find_avatar_file_id(file_name):

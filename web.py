@@ -84,6 +84,7 @@ def auth(payload):
         "name": name,
         "username": username,
         "avatar": prof.get("avatar", ""),
+        "tg_lang": user.get("language_code") or "",
     }
 
 
@@ -113,13 +114,19 @@ def cat_label(cat_id):
     return (c["icon"] + " " + c["name"]) if c else (cat_id or "MINECRAFT")
 
 
-def mod_json(mid, m, favs):
+def user_lang(uid):
+    s = (storage.get_user(uid) or {}).get("settings") or {}
+    return s.get("lang") or "uz"
+
+
+def mod_json(mid, m, favs, lang="uz"):
     photos = storage.mod_photos(m)
     files = m.get("files", [])
+    tr = (m.get("tr") or {}).get(lang) or {}
     return {
         "id": mid,
-        "name": m.get("name", "Nomsiz"),
-        "description": m.get("description", "") or "",
+        "name": tr.get("name") or m.get("name", "Nomsiz"),
+        "description": tr.get("description") or m.get("description", "") or "",
         "category": m.get("category", "minecraft"),
         "category_name": cat_label(m.get("category", "minecraft")),
         "date": m.get("date", ""),
@@ -387,8 +394,12 @@ class WebHandler(BaseHTTPRequestHandler):
 
             if path == "/api/comments":
                 mid = (q.get("mod_id") or [""])[0]
-                comments = storage.data.get("comments", {}).get(mid, [])
-                return self._json({"ok": True, "comments": list(comments)})
+                comments = []
+                for c in storage.data.get("comments", {}).get(mid, []):
+                    cc = dict(c)
+                    cc.setdefault("avatar", (storage.get_user(c.get("user_id")) or {}).get("avatar", ""))
+                    comments.append(cc)
+                return self._json({"ok": True, "comments": comments})
 
             if path == "/api/admin/backup":
                 payload = {"init_data": (q.get("init_data") or [""])[0]}
@@ -505,6 +516,8 @@ class WebHandler(BaseHTTPRequestHandler):
                 return self._api_check_sub(payload)
             if path == "/api/contact":
                 return self._api_contact(payload)
+            if path == "/api/messages":
+                return self._api_messages(payload)
             if path.startswith("/api/admin/"):
                 return self._api_admin(path, payload, files)
             self._json({"ok": False, "error": "Topilmadi"}, 404)
@@ -524,7 +537,8 @@ class WebHandler(BaseHTTPRequestHandler):
                                "user": user})
         prof = storage.get_user(uid) or {}
         favs = set(prof.get("favorites", []) or [])
-        mods = [mod_json(mid, m, favs) for mid, m in storage.data.get("mods", {}).items()]
+        lang = user_lang(uid)
+        mods = [mod_json(mid, m, favs, lang) for mid, m in storage.data.get("mods", {}).items()]
         mods.sort(key=lambda x: storage.parse_ts(x.get("date", "")), reverse=True)
         return self._json({
             "ok": True,
@@ -533,6 +547,7 @@ class WebHandler(BaseHTTPRequestHandler):
             "subscribed": subscribed(uid),
             "blocked": False,
             "settings": prof.get("settings", {"theme": "dark", "sound": True, "bg": True}),
+            "unread": storage.unread_messages(uid),
             "favorites": list(favs),
             "invited_count": prof.get("invited_count", 0),
             "joined": prof.get("date", ""),
@@ -548,7 +563,8 @@ class WebHandler(BaseHTTPRequestHandler):
         user = auth(payload)
         if not user:
             return self._json({"ok": False, "error": "Avtorizatsiya xatosi"}, 401)
-        return self._json({"ok": True, "web_live": storage.web_live_count()})
+        return self._json({"ok": True, "web_live": storage.web_live_count(),
+                           "unread": storage.unread_messages(user["id"])})
 
     def _api_favorite(self, payload):
         user = auth(payload)
@@ -575,6 +591,8 @@ class WebHandler(BaseHTTPRequestHandler):
             "theme": payload.get("theme"),
             "sound": payload.get("sound"),
             "bg": payload.get("bg"),
+            "lang": payload.get("lang"),
+            "font": payload.get("font"),
         })
         return self._json({"ok": True, "settings": settings})
 
@@ -656,7 +674,6 @@ class WebHandler(BaseHTTPRequestHandler):
         except Exception as e:
             print("Avatar zaxira xatosi:", e)
         storage.save_data()
-        storage.backup_now()
         return self._json({"ok": True, "avatar": prof["avatar"]})
 
     def _api_comment_add(self, payload):
@@ -675,12 +692,23 @@ class WebHandler(BaseHTTPRequestHandler):
         item = {
             "user_id": user["id"],
             "user_name": user["name"],
+            "avatar": (storage.get_user(user["id"]) or {}).get("avatar", ""),
             "text": text,
             "date": storage.now_str(),
         }
         storage.data.setdefault("comments", {}).setdefault(mid, []).append(item)
         storage.save_data()
         return self._json({"ok": True, "comment": item})
+
+    def _api_messages(self, payload):
+        user = auth(payload)
+        if not user:
+            return self._json({"ok": False, "error": "Avtorizatsiya xatosi"}, 401)
+        if is_blocked_now(user["id"]):
+            return self._json({"ok": False, "blocked": True, "error": "Bloklangansiz"}, 403)
+        msgs = storage.get_messages(user["id"])
+        storage.mark_messages_read(user["id"])
+        return self._json({"ok": True, "messages": msgs, "unread": 0})
 
     def _api_check_sub(self, payload):
         user = auth(payload)
@@ -703,6 +731,7 @@ class WebHandler(BaseHTTPRequestHandler):
         text = str(payload.get("text") or "").strip()[:1500]
         if not text:
             return self._json({"ok": False, "error": "Xabar bo'sh"}, 400)
+        storage.add_message(user["id"], "user", text)
         import bot
         sent = 0
         for admin_id in storage.data.get("admins", []):
@@ -750,6 +779,7 @@ class WebHandler(BaseHTTPRequestHandler):
                     "id": uid,
                     "name": u.get("name", ""),
                     "username": u.get("username", ""),
+                    "avatar": u.get("avatar", ""),
                     "last_seen": u.get("last_seen", ""),
                     "blocked": storage.is_blocked(uid),
                     "favorites": len(u.get("favorites", []) or []),
@@ -773,6 +803,10 @@ class WebHandler(BaseHTTPRequestHandler):
             if cat in config.CATEGORY_MAP and cat not in ("all", "favorites"):
                 mod["category"] = cat
             storage.save_data()
+            if payload.get("name") or "description" in payload:
+                mod["tr"] = {}
+                import translate
+                translate.translate_mod_later(mid, delay=2)
             return self._json({"ok": True})
 
         if action == "mod_delete":
@@ -955,11 +989,12 @@ class WebHandler(BaseHTTPRequestHandler):
         storage.save_data()
         threading.Thread(target=self._persist_mod_media, args=(mod_id, user["id"]),
                          daemon=True).start()
+        import translate
+        translate.translate_mod_later(mod_id, delay=3)
 
         published = False
         if str(payload.get("publish") or "") in ("1", "true", "on"):
             published = publish_mod(mod_id)
-        storage.backup_now()
         return self._json({"ok": True, "mod": mod_json(mod_id, mod, set()), "published": published})
 
     def _persist_mod_media(self, mod_id, admin_id):
@@ -989,7 +1024,6 @@ class WebHandler(BaseHTTPRequestHandler):
                     changed = True
             if changed:
                 storage.save_data()
-                storage.backup_now()
         except Exception as e:
             print("Mod fayllarini zaxiralash xatosi:", e)
 

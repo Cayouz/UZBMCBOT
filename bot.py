@@ -143,8 +143,7 @@ def panel_text():
     info += "📦 Modlar soni: <b>%d ta</b>\n" % len(d.get("mods", {}))
     info += "⬇️ Jami yuklanishlar: <b>%d marta</b>\n" % total_dl
     info += "👤 Adminlar: <b>%d kishi</b>\n" % len(d.get("admins", []))
-    info += "👥 Jonli foydalanuvchilar: <b>%d</b> / Jami: <b>%d</b>\n" % (
-        storage.live_users_count(), len(d.get("users", {})))
+    info += "👥 Jonli foydalanuvchilar: <b>%d ta</b>\n" % storage.live_users_count()
     info += "🌐 Hozir saytda: <b>%d</b>\n" % storage.web_live_count()
     info += "💬 Jonli guruhlar: <b>%d ta</b>\n" % len(storage.live_groups())
     info += "🚫 Bloklanganlar: <b>%d ta</b>\n" % len(d.get("blocked", {}))
@@ -159,8 +158,7 @@ def stats_text():
     total_dl = sum(m.get("downloads", 0) for m in d.get("mods", {}).values())
     groups = storage.live_groups()
     t = "📊 <b>BOT STATISTIKASI</b>\n\n"
-    t += "👥 Jonli foydalanuvchilar: <b>%d</b> / Jami: <b>%d</b>\n" % (
-        storage.live_users_count(), len(d.get("users", {})))
+    t += "👥 Jonli foydalanuvchilar: <b>%d ta</b>\n" % storage.live_users_count()
     t += "🌐 Hozir saytda: <b>%d</b>\n" % storage.web_live_count()
     t += "💬 Jonli guruhlar: <b>%d ta</b>\n" % len(groups)
     t += "📦 Modlar: <b>%d ta</b>\n" % len(d.get("mods", {}))
@@ -341,9 +339,11 @@ def send_mod_detail(chat_id, user_id, mod_id):
         [tg.button("⬇️ Yuklab olish", callback_data="moddl_" + mod_id),
          tg.button("❤️ Saqlangan" if is_fav else "🤍 Saqlash",
                    callback_data="modfav_" + mod_id)],
-        [tg.button("🔙 Kategoriyaga qaytish",
-                   callback_data="cat_" + mod.get("category", "all"))],
     ]
+    if storage.is_admin(user_id):
+        rows.append([tg.button("📢 Kanalga joylash", callback_data="publish_" + mod_id)])
+    rows.append([tg.button("🔙 Kategoriyaga qaytish",
+                           callback_data="cat_" + mod.get("category", "all"))])
     tg.send_message(chat_id, "📥 Yuklab olish uchun tugmani bosing:", tg.inline_kb(rows))
 
 
@@ -466,6 +466,8 @@ def finish_upload(chat_id, user_id, sd):
     }
     storage.data.setdefault("mods", {})[mod_id] = mod
     storage.save_data(backup=False)
+    import translate
+    translate.translate_mod_later(mod_id, delay=3)
 
     caption = "<b>%s</b>\n\n%s\n\n📂 %s\n📱 @%s" % (
         escape(mod["name"]), escape(mod["description"] or "Tavsif yo'q"),
@@ -555,6 +557,7 @@ def handle_message(message):
         rep = storage.get_reply(message)
         if rep is not None:
             out = "💬 <b>Admindan javob keldi:</b>\n\n%s" % escape(text)
+            storage.add_message(rep["user_id"], "admin", text)
             res = tg.send_message(rep["chat_id"], out)
             if res.get("ok"):
                 tg.send_message(chat_id, "✅ Javob <b>%s</b> ga yuborildi!" % escape(rep["user_name"]))
@@ -636,6 +639,7 @@ def handle_message(message):
     # ---- STATES ----
     if cur == "help":
         storage.clear_state(user_id)
+        storage.add_message(user_id, "user", text)
         for admin_id in storage.data.get("admins", []):
             user_link = '<a href="tg://user?id=%s"><b>%s</b></a>' % (user_id, escape(user_name))
             msg = ("📩 <b>Yangi Yordam Xabari</b>\n\n"
@@ -750,7 +754,10 @@ def handle_message(message):
         if m_id in storage.data.get("mods", {}):
             old = storage.data["mods"][m_id].get("name", "")
             storage.data["mods"][m_id]["name"] = text.strip()
+            storage.data["mods"][m_id]["tr"] = {}
             storage.save_data()
+            import translate
+            translate.translate_mod_later(m_id, delay=2)
             storage.clear_state(user_id)
             tg.send_message(chat_id, "✅ Nom o'zgartirildi!\n\n🔴 Eski: <s>%s</s>\n🟢 Yangi: <b>%s</b>"
                             % (escape(old), escape(text.strip())), main_keyboard(True))
@@ -763,7 +770,10 @@ def handle_message(message):
         m_id = sd.get("mod_id", "")
         if m_id in storage.data.get("mods", {}):
             storage.data["mods"][m_id]["description"] = text.strip()
+            storage.data["mods"][m_id]["tr"] = {}
             storage.save_data()
+            import translate
+            translate.translate_mod_later(m_id, delay=2)
             storage.clear_state(user_id)
             tg.send_message(chat_id, "✅ Tavsif yangilandi!\n\n📝 <i>%s</i>" % escape(text.strip()),
                             main_keyboard(True))
@@ -1237,19 +1247,6 @@ def handle_callback(cq):
     tg.answer_callback(cb_id)
 
 
-# ============ AUTO BACKUP ============
-def auto_backup_loop(interval=300):
-    last = ""
-    while True:
-        time.sleep(interval)
-        try:
-            sig = storage.backup_signature()
-            if sig != last and storage.backup_now(wait=True):
-                last = sig
-        except Exception as e:
-            print("Auto backup xatosi:", e)
-
-
 # ============ POLLING ============
 def run_bot():
     print("Bot polling boshlandi...")
@@ -1260,7 +1257,6 @@ def run_bot():
     except Exception:
         pass
     threading.Thread(target=refresh_groups, daemon=True).start()
-    threading.Thread(target=auto_backup_loop, daemon=True).start()
     if (not storage.was_restored() and not storage.data.get("mods")
             and not storage.data.get("users")):
         try:
