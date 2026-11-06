@@ -140,15 +140,19 @@ def mod_json(mid, m, favs, lang="uz"):
             for i, f in enumerate(files)
         ],
         "saved": mid in favs,
+        "hidden": bool(m.get("hidden")),
+        "channel_tracked": bool(m.get("channel_posts")),
+        "channel_sync_error": bool(m.get("channel_sync_error")),
         "comments": len(storage.data.get("comments", {}).get(mid, [])),
     }
 
 
 def public_stats():
     d = storage.data
+    mods = [mod for mod in d.get("mods", {}).values() if storage.mod_visible(mod)]
     return {
-        "mods": len(d.get("mods", {})),
-        "downloads": sum(m.get("downloads", 0) for m in d.get("mods", {}).values()),
+        "mods": len(mods),
+        "downloads": sum(m.get("downloads", 0) for m in mods),
         "favorites": sum(len(u.get("favorites", []) or []) for u in d.get("users", {}).values()),
     }
 
@@ -209,27 +213,116 @@ def remove_mod_files(mod):
                 pass
 
 
-def publish_mod(mid):
-    mod = storage.data.get("mods", {}).get(mid)
-    if not mod:
-        return False
+_channel_lock = threading.RLock()
+
+
+def _channel_content(mid, mod):
     link = "https://t.me/%s?start=%s" % (config.BOT_USERNAME, mid)
-    caption = "<b>%s</b>\n\n%s\n\n📱 Kanal: @%s" % (
-        _esc(mod.get("name", "")), _esc(mod.get("description", "") or ""),
-        config.CHANNEL_USERNAME)
-    kb = tg.inline_kb([[tg.button("⬇️ Yuklab olish", url=link)]])
-    photos = storage.mod_photos(mod)
-    if photos:
-        p0 = photos[0]
-        if p0.get("path") and os.path.exists(p0["path"]):
-            tg.send_photo(config.CHANNEL_ID, p0["path"], caption, kb)
-        elif p0.get("file_id"):
-            tg.send_photo(config.CHANNEL_ID, p0["file_id"], caption, kb)
-        if len(photos) > 1:
-            tg.send_media_group(config.CHANNEL_ID, photos[1:])
-    else:
-        tg.send_message(config.CHANNEL_ID, caption, kb)
-    return True
+    name = str(mod.get("name") or "")[:120]
+    footer = "\n\n📱 Kanal: @%s" % config.CHANNEL_USERNAME
+    description = str(mod.get("description") or "")[:max(0, 1024 - len(name) - len(footer) - 4)]
+    caption = "<b>%s</b>\n\n%s%s" % (_esc(name), _esc(description), footer)
+    keyboard = tg.inline_kb([[tg.button("⬇️ Yuklab olish", url=link)]])
+    return caption, keyboard
+
+
+def _channel_photo(photo):
+    path = photo.get("path") or ""
+    return path if path and os.path.isfile(path) else photo.get("file_id") or ""
+
+
+def _channel_ok(result):
+    return bool(result.get("ok") or "message is not modified" in str(result.get("description") or "").lower())
+
+
+def publish_mod(mid):
+    with _channel_lock:
+        mod = storage.data.get("mods", {}).get(mid)
+        if not mod or mod.get("hidden"):
+            return False
+        caption, keyboard = _channel_content(mid, mod)
+        photos = storage.mod_photos(mod)
+        if photos:
+            photo = _channel_photo(photos[0])
+            if not photo:
+                return False
+            result = tg.send_photo(config.CHANNEL_ID, photo, caption, keyboard)
+        else:
+            result = tg.send_message(config.CHANNEL_ID, caption, keyboard)
+        message_id = (result.get("result") or {}).get("message_id")
+        if not result.get("ok") or not message_id:
+            return False
+        post = {"chat_id": config.CHANNEL_ID, "message_id": message_id,
+                "kind": "photo" if photos else "text", "extra_ids": []}
+        mod.setdefault("channel_posts", []).append(post)
+        storage.save_data()
+        extra = photos[1:]
+        if len(extra) == 1:
+            photo = _channel_photo(extra[0])
+            result = tg.send_photo(config.CHANNEL_ID, photo) if photo else {"ok": False}
+            messages = [result.get("result") or {}] if result.get("ok") else []
+        elif extra:
+            result = tg.send_media_group(config.CHANNEL_ID, extra)
+            messages = result.get("result") or [] if result.get("ok") else []
+        else:
+            messages = []
+        post["extra_ids"] = [message["message_id"] for message in messages if message.get("message_id")]
+        complete = len(post["extra_ids"]) == len(extra)
+        mod["channel_sync_error"] = not complete
+        storage.save_data()
+        return complete
+
+
+def sync_mod_posts(mid, media_changed=False):
+    with _channel_lock:
+        mod = storage.data.get("mods", {}).get(mid)
+        posts = mod.get("channel_posts") if mod else None
+        if not posts:
+            return None
+        caption, keyboard = _channel_content(mid, mod)
+        photos = storage.mod_photos(mod)
+        media_changed = media_changed or mod.get("channel_sync_error", False)
+        ok = True
+        for post in posts:
+            chat_id, message_id = post["chat_id"], post["message_id"]
+            if photos and (media_changed or post["kind"] == "text"):
+                photo = _channel_photo(photos[0])
+                result = tg.edit_photo(chat_id, message_id, photo, caption, keyboard) if photo else {"ok": False}
+                if _channel_ok(result):
+                    post["kind"] = "photo"
+            elif post["kind"] == "photo":
+                result = tg.api_request("editMessageCaption", {
+                    "chat_id": chat_id, "message_id": message_id, "caption": caption,
+                    "parse_mode": "HTML", "reply_markup": json.dumps(keyboard)})
+            else:
+                result = tg.edit_message(chat_id, message_id, caption, keyboard)
+            ok = _channel_ok(result) and ok
+            if not media_changed:
+                continue
+            extra_ids = post["extra_ids"]
+            extra = photos[1:]
+            for index, photo in enumerate(extra):
+                source = _channel_photo(photo)
+                if index < len(extra_ids):
+                    result = tg.edit_photo(chat_id, extra_ids[index], source) if source else {"ok": False}
+                else:
+                    result = tg.send_photo(chat_id, source, silent=True) if source else {"ok": False}
+                    new_id = (result.get("result") or {}).get("message_id")
+                    if result.get("ok") and new_id:
+                        extra_ids.append(new_id)
+                    else:
+                        ok = False
+                        break
+                ok = _channel_ok(result) and ok
+            for old_id in extra_ids[len(extra):][:]:
+                result = tg.api_request("deleteMessage", {"chat_id": chat_id, "message_id": old_id})
+                if result.get("ok"):
+                    extra_ids.remove(old_id)
+                else:
+                    ok = False
+        mod["channel_sync_error"] = not ok
+        storage.save_data()
+        return ok
 
 
 def _esc(text):
@@ -400,6 +493,9 @@ class WebHandler(BaseHTTPRequestHandler):
 
             if path == "/api/comments":
                 mid = (q.get("mod_id") or [""])[0]
+                mod = storage.data.get("mods", {}).get(mid)
+                if mod and not storage.mod_visible(mod):
+                    return self._json({"ok": False, "error": "Mod topilmadi"}, 404)
                 comments = []
                 for c in storage.data.get("comments", {}).get(mid, []):
                     cc = dict(c)
@@ -442,6 +538,17 @@ class WebHandler(BaseHTTPRequestHandler):
         if not rel or ".." in rel or "/" in rel or "\\" in rel:
             return self._json({"ok": False, "error": "Noto'g'ri yo'l"}, 400)
         fpath = os.path.join(base, os.path.basename(rel))
+        if base == config.MODS_DIR:
+            normalized_path = os.path.normcase(os.path.abspath(fpath))
+            normalized_name = os.path.normcase(rel)
+            for mid, mod in storage.data.get("mods", {}).items():
+                if not mod.get("hidden"):
+                    continue
+                paths = [os.path.normcase(os.path.abspath(record["file_path"]))
+                         for record in mod.get("files") or [] if record.get("file_path")]
+                prefixes = tuple(os.path.normcase(prefix) for prefix in (mid + "_", "cache_dl_" + mid + "_"))
+                if normalized_path in paths or normalized_name.startswith(prefixes):
+                    return self._json({"ok": False, "error": "Fayl topilmadi"}, 404)
         if os.path.isfile(fpath):
             return self._file(fpath)
         self._json({"ok": False, "error": "Fayl topilmadi"}, 404)
@@ -478,6 +585,8 @@ class WebHandler(BaseHTTPRequestHandler):
 
     def _serve_mod_download(self, mid, idx):
         mod = storage.data.get("mods", {}).get(mid)
+        if mod and not storage.mod_visible(mod):
+            return self._json({"ok": False, "error": "Mod topilmadi"}, 404)
         files = mod.get("files", []) if mod else []
         if idx < 0 or idx >= len(files):
             return self._json({"ok": False, "error": "Fayl topilmadi"}, 404)
@@ -550,7 +659,8 @@ class WebHandler(BaseHTTPRequestHandler):
         prof = storage.get_user(uid) or {}
         favs = set(prof.get("favorites", []) or [])
         lang = user_lang(uid)
-        mods = [mod_json(mid, m, favs, lang) for mid, m in storage.data.get("mods", {}).items()]
+        mods = [mod_json(mid, m, favs, lang) for mid, m in storage.data.get("mods", {}).items()
+                if storage.mod_visible(m, uid)]
         mods.sort(key=lambda x: storage.parse_ts(x.get("date", "")), reverse=True)
         return self._json({
             "ok": True,
@@ -588,7 +698,8 @@ class WebHandler(BaseHTTPRequestHandler):
             return self._json({"ok": False, "forced_sub": True,
                                "error": "Avval kanallarga obuna bo'ling"}, 403)
         mid = str(payload.get("mod_id") or "")
-        if mid not in storage.data.get("mods", {}):
+        mod = storage.data.get("mods", {}).get(mid)
+        if not mod or not storage.mod_visible(mod, user["id"]):
             return self._json({"ok": False, "error": "Mod topilmadi"}, 404)
         saved = storage.toggle_favorite(user["id"], mid)
         return self._json({"ok": True, "saved": saved})
@@ -619,7 +730,7 @@ class WebHandler(BaseHTTPRequestHandler):
                                "error": "Avval kanallarga obuna bo'ling"}, 403)
         mid = str(payload.get("mod_id") or "")
         mod = storage.data.get("mods", {}).get(mid)
-        if not mod:
+        if not mod or not storage.mod_visible(mod, user["id"]):
             return self._json({"ok": False, "error": "Mod topilmadi"}, 404)
         files = mod.get("files", []) or []
         if not files:
@@ -698,8 +809,11 @@ class WebHandler(BaseHTTPRequestHandler):
             return self._json({"ok": False, "forced_sub": True,
                                "error": "Avval kanallarga obuna bo'ling"}, 403)
         mid = str(payload.get("mod_id") or "")
+        mod = storage.data.get("mods", {}).get(mid)
+        if mod and not storage.mod_visible(mod, user["id"]):
+            return self._json({"ok": False, "error": "Mod topilmadi"}, 404)
         text = str(payload.get("text") or "").strip()[:500]
-        if not text or mid not in storage.data.get("mods", {}):
+        if not text or not mod:
             return self._json({"ok": False, "error": "Xabar bo'sh"}, 400)
         item = {
             "user_id": user["id"],
@@ -872,6 +986,18 @@ class WebHandler(BaseHTTPRequestHandler):
 
         if action == "mod_edit":
             return self._admin_mod_edit(payload, files, user)
+
+        if action == "mod_visibility":
+            mid = str(payload.get("mod_id") or "")
+            mod = storage.data.get("mods", {}).get(mid)
+            if not mod:
+                return self._json({"ok": False, "error": "Mod topilmadi"}, 404)
+            if not isinstance(payload.get("hidden"), bool):
+                return self._json({"ok": False, "error": "Noto'g'ri holat"}, 400)
+            mod["hidden"] = payload["hidden"]
+            storage.save_data()
+            favs = set((storage.get_user(user["id"]) or {}).get("favorites", []))
+            return self._json({"ok": True, "mod": mod_json(mid, mod, favs, user_lang(user["id"]))})
 
         if action == "mod_delete":
             mid = str(payload.get("mod_id") or "")
@@ -1086,8 +1212,10 @@ class WebHandler(BaseHTTPRequestHandler):
         if text_changed:
             import translate
             translate.translate_mod_later(mid, delay=2)
+        channel_updated = sync_mod_posts(mid, media_changed=bool(photos_in))
         favs = set((storage.get_user(user["id"]) or {}).get("favorites", []))
-        return self._json({"ok": True, "mod": mod_json(mid, mod, favs, user_lang(user["id"]))})
+        return self._json({"ok": True, "mod": mod_json(mid, mod, favs, user_lang(user["id"])),
+                           "channel_updated": channel_updated})
 
     def _admin_mod_add(self, payload, files, user):
         name = str(payload.get("name") or "").strip()[:120]

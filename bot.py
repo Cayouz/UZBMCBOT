@@ -268,7 +268,7 @@ def send_subscription_warning(chat_id, missing):
 # ============ MODLAR KO'RINISHI ============
 def category_items(user_id, cat_id):
     d = storage.data
-    mods = d.get("mods", {})
+    mods = {mid: mod for mid, mod in d.get("mods", {}).items() if storage.mod_visible(mod, user_id)}
     if cat_id == "favorites":
         favs = (storage.get_user(user_id) or {}).get("favorites", [])
         return [(mid, m) for mid, m in mods.items() if mid in favs]
@@ -318,8 +318,8 @@ def show_category(chat_id, user_id, cat_id, page=0, message_id=None):
 def send_mod_detail(chat_id, user_id, mod_id):
     d = storage.data
     mod = d.get("mods", {}).get(mod_id)
-    if not mod:
-        tg.send_message(chat_id, "❌ Mod topilmadi!")
+    if not mod or not storage.mod_visible(mod, user_id):
+        tg.send_message(chat_id, "Mod topilmadi.")
         return
     mod["downloads"] = mod.get("downloads", 0) + 1
     storage.save_data()
@@ -348,10 +348,10 @@ def send_mod_detail(chat_id, user_id, mod_id):
     tg.send_message(chat_id, "📥 Yuklab olish uchun tugmani bosing:", tg.inline_kb(rows))
 
 
-def send_mod_files(chat_id, mod_id):
+def send_mod_files(chat_id, mod_id, user_id=None):
     mod = storage.data.get("mods", {}).get(mod_id)
-    if not mod:
-        tg.send_message(chat_id, "❌ Mod topilmadi!")
+    if not mod or not storage.mod_visible(mod, user_id):
+        tg.send_message(chat_id, "Mod topilmadi.")
         return
     files = mod.get("files", [])
     if not files:
@@ -757,6 +757,9 @@ def handle_message(message):
             storage.data["mods"][m_id]["name"] = text.strip()
             storage.data["mods"][m_id]["tr"] = {}
             storage.save_data()
+            import web
+            if web.sync_mod_posts(m_id) is False:
+                tg.send_message(chat_id, "Mod saqlandi, lekin kanal posti yangilanmadi. Saytdan qayta saqlab urinib ko'ring.")
             import translate
             translate.translate_mod_later(m_id, delay=2)
             storage.clear_state(user_id)
@@ -773,6 +776,9 @@ def handle_message(message):
             storage.data["mods"][m_id]["description"] = text.strip()
             storage.data["mods"][m_id]["tr"] = {}
             storage.save_data()
+            import web
+            if web.sync_mod_posts(m_id) is False:
+                tg.send_message(chat_id, "Mod saqlandi, lekin kanal posti yangilanmadi. Saytdan qayta saqlab urinib ko'ring.")
             import translate
             translate.translate_mod_later(m_id, delay=2)
             storage.clear_state(user_id)
@@ -987,7 +993,7 @@ def handle_callback(cq):
         tg.answer_callback(cb_id)
         return
 
-    if cb.startswith("mod_"):
+    if cb.startswith("mod_") and not cb.startswith("mod_edit_"):
         mod_id = cb.replace("mod_", "", 1)
         send_mod_detail(chat_id, user_id, mod_id)
         tg.answer_callback(cb_id)
@@ -995,17 +1001,25 @@ def handle_callback(cq):
 
     if cb.startswith("moddl_"):
         mod_id = cb.replace("moddl_", "", 1)
+        mod = storage.data.get("mods", {}).get(mod_id)
+        if not mod or not storage.mod_visible(mod, user_id):
+            tg.answer_callback(cb_id, "Mod topilmadi.", alert=True)
+            return
         if not is_private:
             link = "https://t.me/%s?start=%s" % (config.BOT_USERNAME, mod_id)
             tg.answer_callback(cb_id, "Shaxsiy chatda oching!", alert=True)
             tg.send_message(chat_id, "⬇️ Yuklab olish uchun botga shaxsiy chatda yozing: %s" % link)
             return
-        send_mod_files(chat_id, mod_id)
+        send_mod_files(chat_id, mod_id, user_id)
         tg.answer_callback(cb_id, "⏳ Fayllar yuborilmoqda...")
         return
 
     if cb.startswith("modfav_"):
         mod_id = cb.replace("modfav_", "", 1)
+        mod = storage.data.get("mods", {}).get(mod_id)
+        if not mod or not storage.mod_visible(mod, user_id):
+            tg.answer_callback(cb_id, "Mod topilmadi.", alert=True)
+            return
         saved = storage.toggle_favorite(user_id, mod_id)
         tg.answer_callback(cb_id, "❤️ Saqlandi!" if saved else "🤍 Saqlanganlardan olib tashlandi")
         mod = storage.data.get("mods", {}).get(mod_id, {})
@@ -1020,27 +1034,15 @@ def handle_callback(cq):
         return
 
     if cb.startswith("publish_"):
+        if not storage.is_admin(user_id):
+            tg.answer_callback(cb_id, "Faqat admin uchun.", alert=True)
+            return
+        import web
         mod_id = cb.replace("publish_", "", 1)
-        mod = storage.data.get("mods", {}).get(mod_id)
-        if mod:
-            link = "https://t.me/%s?start=%s" % (config.BOT_USERNAME, mod_id)
-            caption = "<b>%s</b>\n\n%s\n\n📱 Kanal: @%s" % (
-                escape(mod.get("name", "")), escape(mod.get("description", "") or ""),
-                config.CHANNEL_USERNAME)
-            kb = tg.inline_kb([[tg.button("⬇️ Yuklab olish", url=link)]])
-            photos = storage.mod_photos(mod)
-            if photos:
-                p0 = photos[0]
-                if p0.get("path") and os.path.exists(p0["path"]):
-                    tg.send_photo(config.CHANNEL_ID, p0["path"], caption, kb)
-                elif p0.get("file_id"):
-                    tg.send_photo(config.CHANNEL_ID, p0["file_id"], caption, kb)
-                if len(photos) > 1:
-                    tg.send_media_group(config.CHANNEL_ID, photos[1:])
-            else:
-                tg.send_message(config.CHANNEL_ID, caption, kb)
-            tg.answer_callback(cb_id, "✅ Kanalga joylandi!")
-            tg.send_message(chat_id, "✅ Mod kanalga joylandi!", main_keyboard(storage.is_admin(user_id)))
+        ok = web.publish_mod(mod_id)
+        message = "Mod kanalga joylandi." if ok else "Kanalga joylash amalga oshmadi."
+        tg.answer_callback(cb_id, message, alert=not ok)
+        tg.send_message(chat_id, message, main_keyboard(True))
         return
 
     if cb == "check_subscription":

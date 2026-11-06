@@ -520,6 +520,10 @@ def web_live_count():
 
 
 # ---------------- MODS HELPERS ----------------
+def mod_visible(mod, user_id=None):
+    return not mod.get("hidden") or (user_id is not None and is_admin(user_id))
+
+
 def mod_editions(mod):
     editions = set()
     for text in (mod.get("description") or "", mod.get("name") or ""):

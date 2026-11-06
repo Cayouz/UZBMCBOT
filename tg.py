@@ -230,6 +230,21 @@ def send_media_group(chat_id, photos, caption="", silent=False):
                 pass
 
 
+def edit_photo(chat_id, message_id, photo, caption="", keyboard=None):
+    params = {"chat_id": chat_id, "message_id": message_id}
+    media = {"type": "photo", "caption": caption, "parse_mode": "HTML"}
+    if keyboard is not None:
+        params["reply_markup"] = json.dumps(keyboard)
+    if isinstance(photo, str) and os.path.isfile(photo):
+        media["media"] = "attach://photo"
+        params["media"] = json.dumps(media)
+        with open(photo, "rb") as file:
+            return api_request("editMessageMedia", params, {"photo": file})
+    media["media"] = photo
+    params["media"] = json.dumps(media)
+    return api_request("editMessageMedia", params)
+
+
 def send_document(chat_id, document, caption="", silent=False):
     params = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
     if silent:

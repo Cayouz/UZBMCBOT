@@ -510,6 +510,7 @@ f_cat:"Kategoriya", f_photos:"Rasmlar (1–5 ta)", ph_hint:"Birinchi rasm asosiy
 f_files:"Fayllar (.mcaddon, .mcpack, .zip ...)", pub_chk:"Telegram kanalga ham joylash",
 upload:"📤 Yuklash", uploading:"Yuklanmoqda...",
 edit_t:"✏️ Tahrirlash", f_name2:"Nomi", f_desc2:"Tavsif", f_cat2:"Kategoriya", cancel2:"Bekor", save_btn:"💾 Saqlash", saved_ok:"✅ Saqlandi",
+hide_mod:"Yashirish", show_mod:"Ko'rsatish", hidden_mod:"Yashirilgan", mod_hidden_ok:"Mod foydalanuvchilardan yashirildi", mod_shown_ok:"Mod yana ko'rinadi", saved_channel:"Mod va kanal posti yangilandi", channel_sync_fail:"Mod saqlandi, lekin kanal yangilanmadi. Qayta saqlab urinib ko'ring.", channel_sync_hint:"Saqlaganda bot joylagan kanal posti ham yangilanadi.", channel_untracked_hint:"Bu modning oldingi kanal posti IDsi yo'q; u avtomatik yangilanmaydi.",
 edit_link:"Mod havolasi", edit_keep:"Havola, izohlar, saqlanganlar va yuklanish soni o'zgarmaydi.", edit_original:"Nomi va tavsifi asl tilda tahrirlanadi.",
 edit_photos:"Rasmlarni almashtirish (1–5 ta)", edit_files:"Fayllarni almashtirish (1–10 ta)", edit_media_hint:"Yangi tanlov shu bo'limdagi barcha eskilarini almashtiradi. Tanlamasangiz, avvalgisi qoladi.",
 edit_replace:"Tanlangan rasm yoki fayllar bilan eskilari almashtirilsinmi?", edit_confirm:"Ha, almashtirish", edit_back:"Tanlovga qaytish", edit_duplicate:"Bu fayl boshqa modda yoki joriy tanlovda mavjud. Baribir almashtirilsinmi?", edit_limits:"Ko'pi bilan 5 ta rasm va 10 ta fayl tanlang", edit_photo_bad:"JPG, PNG, WebP yoki GIF rasm tanlang", edit_photo_big:"Har bir rasm 12MB dan kichik bo'lsin", edit_file_bad:"Har bir mod fayli bo'sh bo'lmasin va 50MB dan oshmasin",
@@ -580,6 +581,7 @@ f_cat:"Category", f_photos:"Photos (1–5)", ph_hint:"The first photo will be th
 f_files:"Files (.mcaddon, .mcpack, .zip ...)", pub_chk:"Also publish to Telegram channel",
 upload:"📤 Upload", uploading:"Uploading...",
 edit_t:"✏️ Edit", f_name2:"Name", f_desc2:"Description", f_cat2:"Category", cancel2:"Cancel", save_btn:"💾 Save", saved_ok:"✅ Saved",
+hide_mod:"Hide", show_mod:"Show", hidden_mod:"Hidden", mod_hidden_ok:"Mod hidden from users", mod_shown_ok:"Mod is visible again", saved_channel:"Mod and channel post updated", channel_sync_fail:"Mod saved, but the channel was not updated. Save again to retry.", channel_sync_hint:"Saving also updates the channel post published by the bot.", channel_untracked_hint:"The old channel post ID is unavailable; it will not be updated automatically.",
 edit_link:"Mod link", edit_keep:"The link, comments, saved entries and download count stay unchanged.", edit_original:"Name and description are edited in their original language.",
 edit_photos:"Replace photos (1–5)", edit_files:"Replace files (1–10)", edit_media_hint:"New selections replace all old items in this section. Leave empty to keep the current items.",
 edit_replace:"Replace the old photos or files with your selection?", edit_confirm:"Yes, replace", edit_back:"Back to selection", edit_duplicate:"This file exists in another mod or in this selection. Replace anyway?", edit_limits:"Select up to 5 photos and 10 files", edit_photo_bad:"Choose JPG, PNG, WebP or GIF photos", edit_photo_big:"Each photo must be under 12MB", edit_file_bad:"Each mod file must be nonempty and no larger than 50MB",
@@ -650,6 +652,7 @@ f_cat:"Категория", f_photos:"Фото (1–5)", ph_hint:"Первое �
 f_files:"Файлы (.mcaddon, .mcpack, .zip ...)", pub_chk:"Также опубликовать в канал Telegram",
 upload:"📤 Загрузить", uploading:"Загрузка...",
 edit_t:"✏️ Редактировать", f_name2:"Название", f_desc2:"Описание", f_cat2:"Категория", cancel2:"Отмена", save_btn:"💾 Сохранить", saved_ok:"✅ Сохранено",
+hide_mod:"Скрыть", show_mod:"Показать", hidden_mod:"Скрыт", mod_hidden_ok:"Мод скрыт от пользователей", mod_shown_ok:"Мод снова виден", saved_channel:"Мод и пост в канале обновлены", channel_sync_fail:"Мод сохранён, но канал не обновлён. Сохраните снова для повтора.", channel_sync_hint:"При сохранении обновится и пост в канале, опубликованный ботом.", channel_untracked_hint:"ID старого поста неизвестен; он не обновится автоматически.",
 edit_link:"Ссылка на мод", edit_keep:"Ссылка, комментарии, сохранения и число скачиваний не изменятся.", edit_original:"Название и описание редактируются на исходном языке.",
 edit_photos:"Заменить фото (1–5)", edit_files:"Заменить файлы (1–10)", edit_media_hint:"Новый выбор заменит все старые элементы этого раздела. Без выбора останутся прежние.",
 edit_replace:"Заменить старые фото или файлы выбранными?", edit_confirm:"Да, заменить", edit_back:"Вернуться к выбору", edit_duplicate:"Этот файл есть в другом моде или в текущем выборе. Всё равно заменить?", edit_limits:"Выберите не более 5 фото и 10 файлов", edit_photo_bad:"Выберите фото JPG, PNG, WebP или GIF", edit_photo_big:"Каждое фото должно быть меньше 12МБ", edit_file_bad:"Каждый файл мода должен быть непустым и не больше 50МБ",
@@ -858,7 +861,7 @@ function renderGate(){
 
 /* ---------- mods ---------- */
 function sortedFiltered(){
-  var list = state.mods.slice();
+  var list = state.mods.filter(function(m){ return !m.hidden; });
   if(state.cat === "favorites"){
     var favs = new Set(state.favorites);
     list = list.filter(function(m){ return favs.has(m.id); });
@@ -1145,7 +1148,7 @@ function renderSettings(){
 /* ---------- profile ---------- */
 function renderProfile(){
   var favs = new Set(state.favorites);
-  var saved = state.mods.filter(function(m){ return favs.has(m.id); });
+  var saved = state.mods.filter(function(m){ return !m.hidden && favs.has(m.id); });
   var ref = "https://t.me/" + state.bot_username + "?start=ref_" + state.user.id;
   var share = "https://t.me/share/url?url=" + encodeURIComponent(ref) +
     "&text=" + encodeURIComponent("🎮 Minecraft modlarini bepul yuklab oling!");
@@ -1247,11 +1250,12 @@ function adminModsHTML(){
       ? '<img src="' + esc(m.photos[0]) + '" alt="">'
       : '<div class="mph">⛏️</div>';
     return '<div class="admin-mod">' + img +
-      '<div class="am-main"><div class="am-t">' + esc(m.name) + '</div>' +
+      '<div class="am-main"><div class="am-t">' + esc(m.name) + (m.hidden ? ' <span class="muted small">· ' + T("hidden_mod") + '</span>' : '') + '</div>' +
       '<div class="am-s">' + esc(m.category_name) + ' • ⬇️ ' + fmt(m.downloads) + ' • ' + esc(m.date) + '</div></div>' +
       '<div class="icon-btns">' +
+        '<button class="icon-btn" title="' + T(m.hidden ? "show_mod" : "hide_mod") + '" aria-label="' + T(m.hidden ? "show_mod" : "hide_mod") + '" data-action="hide-mod" data-id="' + esc(m.id) + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>' + (m.hidden ? '' : '<path d="M3 3l18 18"/>') + '</svg></button>' +
         '<button class="icon-btn" title="Tahrirlash" data-action="edit-mod" data-id="' + esc(m.id) + '">✏️</button>' +
-        '<button class="icon-btn" title="Kanalga joylash" data-action="publish-mod" data-id="' + esc(m.id) + '">📢</button>' +
+        '<button class="icon-btn" title="Kanalga joylash" data-action="publish-mod" data-id="' + esc(m.id) + '" ' + (m.hidden ? 'disabled' : '') + '>📢</button>' +
         '<button class="icon-btn" title="O\'chirish" data-action="delete-mod" data-id="' + esc(m.id) + '">🗑️</button>' +
       '</div></div>';
   }).join("");
@@ -1339,7 +1343,7 @@ function openEditMod(id){
       '<button class="m-close" data-action="close-modal">✕</button></div>' +
       '<form id="editModForm" data-id="' + esc(m.id) + '">' +
         '<div class="field"><label>' + T("edit_link") + '</label><input type="text" readonly data-action="select-edit-link" value="' + esc(m.link) + '">' +
-          '<div class="hint">' + T("edit_keep") + '</div></div>' +
+          '<div class="hint">' + T("edit_keep") + '</div><div class="hint">' + T(m.channel_tracked ? "channel_sync_hint" : "channel_untracked_hint") + '</div></div>' +
         '<div class="field"><label>' + T("f_name2") + '</label><input name="name" type="text" value="' + esc(m.name) + '" maxlength="120" required></div>' +
         '<div class="field"><label>' + T("f_desc2") + '</label><textarea name="description" rows="4" maxlength="2000">' + esc(m.description) + '</textarea>' +
           '<div class="hint">' + T("edit_original") + '</div></div>' +
@@ -1614,7 +1618,7 @@ function submitEditForm(form, confirmed, allowDuplicate){
     if(m) Object.assign(m, r.mod);
     if($("editModForm") === form) closeModal();
     haptic("ok");
-    toast(T("saved_ok"));
+    toast(T(r.channel_updated === false ? "channel_sync_fail" : r.channel_updated ? "saved_channel" : "saved_ok"), r.channel_updated === false);
     renderMods();
     renderAdmin();
   }).catch(function(){ toast(T("net_err"), true); }).finally(function(){
@@ -1770,6 +1774,20 @@ function handleAction(a, el){
     }
     case "add-mod": openAddMod(); break;
     case "edit-mod": openEditMod(el.dataset.id); break;
+    case "hide-mod": {
+      if(el.disabled) return;
+      var hm = state.mods.filter(function(m){ return m.id === el.dataset.id; })[0];
+      if(!hm) return;
+      el.disabled = true;
+      api("/api/admin/mod_visibility", {mod_id:hm.id, hidden:!hm.hidden}).then(function(r){
+        if(!r.ok){ toast(r.error || T("err_generic"), true); return; }
+        Object.assign(hm, r.mod);
+        if(hm.hidden && state.mod && state.mod.id === hm.id) closeSheet();
+        toast(T(hm.hidden ? "mod_hidden_ok" : "mod_shown_ok"));
+        renderMods(); renderAdmin();
+      }).catch(function(){ toast(T("net_err"), true); }).finally(function(){ el.disabled = false; });
+      break;
+    }
     case "delete-mod": {
       var dm = state.mods.filter(function(x){ return x.id === el.dataset.id; })[0];
       ask(T("del_ask_pre") + (dm ? dm.name : "Mod") + T("del_ask_mid")).then(function(yes){
