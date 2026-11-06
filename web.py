@@ -788,7 +788,7 @@ class WebHandler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "users": rows[:200], "total": len(rows)})
 
         if action == "mod_add":
-            return self._admin_mod_add(payload, files)
+            return self._admin_mod_add(payload, files, user)
 
         if action == "mod_edit":
             mid = str(payload.get("mod_id") or "")
@@ -939,7 +939,7 @@ class WebHandler(BaseHTTPRequestHandler):
 
         return self._json({"ok": False, "error": "Noma'lum amal"}, 404)
 
-    def _admin_mod_add(self, payload, files):
+    def _admin_mod_add(self, payload, files, user):
         name = str(payload.get("name") or "").strip()[:120]
         desc = str(payload.get("description") or "").strip()[:2000]
         cat = str(payload.get("category") or "minecraft")
