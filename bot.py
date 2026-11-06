@@ -3,6 +3,7 @@ import os
 import re
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from html import escape
 
@@ -802,19 +803,61 @@ def handle_photo(message):
     state_info = storage.get_state(user_id)
     cur = state_info.get("state", "")
     sd = state_info.get("data", {})
-    if cur != "upload_photos":
-        return
-    if not storage.is_admin(user_id):
-        return
     photos = message.get("photo", [])
-    if not photos:
+    if not photos or not photos[-1].get("file_id"):
+        return
+    file_id = photos[-1]["file_id"]
+    caption = message.get("caption") or ""
+    photo = {"file_id": file_id, "path": ""}
+    if storage.is_admin(user_id) and cur == "" and message.get("reply_to_message"):
+        rep = storage.get_reply(message)
+        if rep is not None:
+            storage.add_message(rep["user_id"], "admin", caption, photo=photo)
+            try:
+                res = tg.send_photo(rep["chat_id"], file_id, caption=escape(caption[:1024]))
+            except Exception:
+                res = {"ok": False}
+            if res.get("ok"):
+                tg.send_message(chat_id, "Javob <b>%s</b> ga yuborildi!" % escape(rep["user_name"]))
+            else:
+                tg.send_message(chat_id, "Javob saytda saqlandi, Telegramga yuborilmadi.")
+            return
+    if cur == "help":
+        user_name = message.get("from", {}).get("first_name") or "Foydalanuvchi"
+        storage.clear_state(user_id)
+        storage.add_message(user_id, "user", caption, photo=photo)
+        user_link = '<a href="tg://user?id=%s"><b>%s</b></a>' % (user_id, escape(user_name))
+        metadata = ("<b>Yangi yordam xabari</b>\n\n"
+                    "<b>Foydalanuvchi:</b> %s (ID: <code>%s</code>)\n"
+                    "<b>Xabar:</b> %s\n<b>Vaqt:</b> %s\n\n"
+                    "Rasmga yoki ushbu xabarga Reply qilib javob bering."
+                    % (user_link, user_id, escape(caption), storage.now_str()))
+        delivered = False
+        for admin_id in storage.data.get("admins", []):
+            try:
+                res_photo = tg.send_photo(admin_id, file_id, caption=escape(caption[:1024]))
+            except Exception:
+                res_photo = {"ok": False}
+            try:
+                res_message = tg.send_message(admin_id, metadata)
+            except Exception:
+                res_message = {"ok": False}
+            for result in (res_photo, res_message):
+                if result.get("ok"):
+                    delivered = True
+                    mid = (result.get("result") or {}).get("message_id")
+                    if mid:
+                        storage.register_reply(mid, chat_id, user_id, user_name)
+        tg.send_message(chat_id, "Xabaringiz adminga yuborildi! Rahmat." if delivered
+                        else "Xabaringiz saytda saqlandi, Telegramga yuborilmadi.",
+                        main_keyboard(storage.is_admin(user_id)))
+        return
+    if cur != "upload_photos" or not storage.is_admin(user_id):
         return
     if len(sd.get("photos", [])) >= config.MAX_UPLOAD_PHOTOS:
         tg.send_message(chat_id, "⚠️ Maksimum %d ta rasm. <b>%s</b> tugmasini bosing."
                         % (config.MAX_UPLOAD_PHOTOS, config.B_PHOTOS_DONE))
         return
-    largest = photos[-1]
-    file_id = largest["file_id"]
     idx = len(sd.get("photos", [])) + 1
     path = download_photo(file_id, user_id, idx)
     sd.setdefault("photos", []).append({"file_id": file_id, "path": path})
@@ -857,13 +900,34 @@ def handle_document(message):
     if len(sd.get("files", [])) >= config.MAX_MOD_FILES:
         tg.send_message(chat_id, "⚠️ Maksimum %d ta fayl." % config.MAX_MOD_FILES)
         return
+    if sd.get("pending_duplicate"):
+        tg.send_message(chat_id, "Avval takroriy fayl uchun qaror qiling yoki yuklashni yakunlang.")
+        return
     file_id = doc.get("file_id")
-    file_name = doc.get("file_name", "mod_file")
+    file_name = doc.get("file_name") or "mod_file"
     safe_name = storage.safe_filename(file_name)
-    fp = os.path.join(config.MODS_DIR, "%d_%s" % (int(time.time()), safe_name))
-    tg.download_file(file_id, fp)
-    sd.setdefault("files", []).append(
-        {"file_id": file_id, "file_name": file_name, "file_path": fp})
+    token = uuid.uuid4().hex
+    fp = os.path.join(config.MODS_DIR, "upload_%s_%s" % (token, safe_name))
+    candidate = {"file_id": file_id or "", "file_unique_id": doc.get("file_unique_id") or "",
+                 "file_name": file_name, "file_path": fp}
+    try:
+        downloaded = bool(file_id and tg.download_file(file_id, fp))
+    except Exception:
+        downloaded = False
+    if not downloaded or not storage.file_sha256(candidate):
+        storage.discard_pending_duplicate({"pending_duplicate": {"token": token, "file": candidate}})
+        tg.send_message(chat_id, "Fayl yuklab olinmadi. Qayta yuboring.", files_keyboard())
+        return
+    duplicate = storage.find_duplicate_file(candidate, sd.get("files") or [])
+    if duplicate:
+        sd["pending_duplicate"] = {"token": token, "file": candidate}
+        storage.set_state(user_id, "upload_files", sd)
+        kb = tg.inline_kb([[tg.button("Baribir qo‘shish", callback_data="dup_add_" + token),
+                            tg.button("Qo‘shmaslik", callback_data="dup_skip_" + token)]])
+        tg.send_message(chat_id, "Bu fayl allaqachon mavjud: <b>%s</b> (<code>%s</code>).\n"
+                        "Baribir qo‘shilsinmi?" % (escape(duplicate["name"]), escape(duplicate["file_name"])), kb)
+        return
+    sd.setdefault("files", []).append(candidate)
     storage.set_state(user_id, "upload_files", sd)
     tg.send_message(chat_id, "✅ Fayl qo'shildi (%d ta): <b>%s</b>\n\nYana yuboring yoki <b>%s</b> ni bosing."
                     % (len(sd["files"]), escape(file_name), config.B_FILES_DONE), files_keyboard())
@@ -999,6 +1063,41 @@ def handle_callback(cq):
         return
 
     # ---- UPLOAD CALLBACKS ----
+    if cb.startswith(("dup_add_", "dup_skip_")):
+        state_info = storage.get_state(user_id)
+        sd = dict(state_info.get("data", {}))
+        pending = sd.get("pending_duplicate") or {}
+        token = cb.split("_", 2)[2]
+        if (not is_private or not storage.is_admin(user_id)
+                or state_info.get("state") != "upload_files" or not pending.get("token")
+                or token != pending["token"]):
+            tg.answer_callback(cb_id, "Amaliyot eskirgan yoki ruxsat yo‘q.", alert=True)
+            return
+        candidate = pending["file"]
+        sd.pop("pending_duplicate")
+        if cb.startswith("dup_skip_"):
+            storage.set_state(user_id, "upload_files", sd)
+            tg.answer_callback(cb_id, "Fayl qo‘shilmadi.")
+            tg.edit_message(chat_id, message_id, "Takroriy fayl qo‘shilmadi.")
+            return
+        if len(sd.get("files", [])) >= config.MAX_MOD_FILES:
+            storage.set_state(user_id, "upload_files", sd)
+            tg.answer_callback(cb_id, "Maksimum %d ta fayl." % config.MAX_MOD_FILES, alert=True)
+            tg.edit_message(chat_id, message_id, "Takroriy fayl qo‘shilmadi: fayllar chegarasi.")
+            return
+        if not os.path.isfile(candidate.get("file_path") or ""):
+            storage.set_state(user_id, "upload_files", sd)
+            tg.answer_callback(cb_id, "Fayl topilmadi. Qayta yuboring.", alert=True)
+            tg.edit_message(chat_id, message_id, "Fayl topilmadi. Qayta yuboring.")
+            return
+        sd["files"] = list(sd.get("files") or []) + [candidate]
+        storage.set_state(user_id, "upload_files", sd)
+        tg.answer_callback(cb_id, "Fayl qo‘shildi.")
+        tg.edit_message(chat_id, message_id, "Takroriy fayl tasdiqlandi.")
+        tg.send_message(chat_id, "✅ Fayl qo'shildi (%d ta): <b>%s</b>\n\nYana yuboring yoki <b>%s</b> ni bosing."
+                        % (len(sd["files"]), escape(candidate["file_name"]), config.B_FILES_DONE), files_keyboard())
+        return
+
     if cb.startswith("cat_select_"):
         cat_id = cb.replace("cat_select_", "", 1)
         state_info = storage.get_state(user_id)

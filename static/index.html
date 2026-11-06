@@ -325,8 +325,11 @@ html[data-theme="light"] .mod-card .ph{background:radial-gradient(circle at 30% 
 .msg.user{align-self:flex-end;background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:5px}
 .msg.admin{align-self:flex-start;background:var(--card2);border:1px solid var(--line);border-bottom-left-radius:5px}
 .msg .md{display:block;font-size:9.5px;opacity:.65;margin-top:3px}
+.chat-photo{display:block;max-width:100%;max-height:320px;object-fit:contain;border-radius:10px;margin-bottom:6px}
+#chatPhotoPreview{display:flex;align-items:center;gap:10px;margin-top:10px}
+#chatPhotoPreview img{width:72px;height:72px;object-fit:cover;border-radius:10px}
 .chat-box{display:flex;gap:8px}
-.chat-box input{flex:1}
+.chat-box input{flex:1;min-width:0}
 .chat-box button{width:46px;height:46px;border-radius:14px;background:var(--accent);color:var(--accent-ink);
   font-size:18px;flex:0 0 auto}
 .lr-ava{width:36px;height:36px;border-radius:50%;object-fit:cover;flex:0 0 auto;border:1px solid var(--line);background:var(--card2)}
@@ -395,7 +398,7 @@ var state = {
   favorites:[], mods:[], categories:[], channels:[],
   bot_username:"", support:"Cayouz", stats:null,
   invited_count:0, joined:"",
-  tab:"mods", cat:"all", q:"", sort:"new", mod:null, adminLoaded:false,
+  tab:"mods", cat:"all", q:"", sort:"new", edition:"", mod:null, adminLoaded:false,
   lang:"uz", font:"", unread:0
 };
 
@@ -466,6 +469,9 @@ nav_mods:"Modlar", nav_settings:"Sozlamalar", nav_profile:"Profil", nav_admin:"A
 sub_mods:"Minecraft modlar dunyosi", sub_settings:"Sayt va obuna", sub_profile:"Shaxsiy kabinet", sub_admin:"Boshqaruv markazi",
 search_ph:"Mod qidirish...", sec_mods:"🔥 Modlar", ta:"ta",
 sort_new:"🆕 Yangi", sort_top:"🔥 Mashhur",
+edition_l:"Minecraft turi", edition_all:"Java va Bedrock", edition_unknown:"Turi ko'rsatilmagan", reset_filters:"Filtrlarni tozalash",
+duplicate_t:"Bu fayl allaqachon bor", duplicate_s:"Quyidagi modda shu fayl mavjud. Baribir qo'shilsinmi?", duplicate_yes:"Baribir yuklash", duplicate_no:"Boshqa fayl tanlash",
+photo_l:"Rasm", photo_remove:"Rasmni olib tashlash", photo_bad:"JPG, PNG yoki WebP rasm tanlang", photo_unavailable:"Rasm yuklanmadi", chat_saved:"Xabar saqlandi, lekin Telegramga yuborilmadi",
 empty_fav_t:"Saqlangan modlar yo'q", empty_fav_s:"Modni ochib ❤️ tugmasini bosing — shu yerda saqlanadi.",
 empty_nf_t:"Modlar topilmadi", empty_nf_s:"Boshqa kategoriyani tanlab ko'ring.", empty_none_t:"Modlar yo'q",
 err_title:"Kirish xatosi", retry:"Qayta urinish",
@@ -530,6 +536,9 @@ nav_mods:"Mods", nav_settings:"Settings", nav_profile:"Profile", nav_admin:"Admi
 sub_mods:"Minecraft mods world", sub_settings:"Site & subscription", sub_profile:"Personal cabinet", sub_admin:"Control center",
 search_ph:"Search mods...", sec_mods:"🔥 Mods", ta:"",
 sort_new:"🆕 New", sort_top:"🔥 Popular",
+edition_l:"Minecraft edition", edition_all:"Java and Bedrock", edition_unknown:"Edition not specified", reset_filters:"Clear filters",
+duplicate_t:"This file already exists", duplicate_s:"This file is already in the mod below. Upload it anyway?", duplicate_yes:"Upload anyway", duplicate_no:"Choose another file",
+photo_l:"Photo", photo_remove:"Remove photo", photo_bad:"Choose a JPG, PNG or WebP photo", photo_unavailable:"Photo could not be loaded", chat_saved:"Message saved, but not delivered to Telegram",
 empty_fav_t:"No saved mods", empty_fav_s:"Open a mod and tap ❤️ — it will be saved here.",
 empty_nf_t:"No mods found", empty_nf_s:"Try another category.", empty_none_t:"No mods",
 err_title:"Login error", retry:"Try again",
@@ -594,6 +603,9 @@ nav_mods:"Моды", nav_settings:"Настройки", nav_profile:"Профи�
 sub_mods:"Мир модов Minecraft", sub_settings:"Сайт и подписка", sub_profile:"Личный кабинет", sub_admin:"Центр управления",
 search_ph:"Поиск модов...", sec_mods:"🔥 Моды", ta:"",
 sort_new:"🆕 Новые", sort_top:"🔥 Популярные",
+edition_l:"Издание Minecraft", edition_all:"Java и Bedrock", edition_unknown:"Издание не указано", reset_filters:"Сбросить фильтры",
+duplicate_t:"Этот файл уже есть", duplicate_s:"Этот файл уже есть в указанном моде. Загрузить повторно?", duplicate_yes:"Всё равно загрузить", duplicate_no:"Выбрать другой файл",
+photo_l:"Фото", photo_remove:"Убрать фото", photo_bad:"Выберите фото JPG, PNG или WebP", photo_unavailable:"Не удалось загрузить фото", chat_saved:"Сообщение сохранено, но не доставлено в Telegram",
 empty_fav_t:"Нет сохранённых модов", empty_fav_s:"Откройте мод и нажмите ❤️ — он сохранится здесь.",
 empty_nf_t:"Моды не найдены", empty_nf_s:"Попробуйте другую категорию.", empty_none_t:"Модов нет",
 err_title:"Ошибка входа", retry:"Повторить",
@@ -852,6 +864,12 @@ function sortedFiltered(){
              (m.category_name||"").toLowerCase().indexOf(q) >= 0;
     });
   }
+  if(state.edition){
+    list = list.filter(function(m){
+      var editions = m.editions || [];
+      return state.edition === "unknown" ? !editions.length : editions.indexOf(state.edition) >= 0;
+    });
+  }
   if(state.sort === "top"){
     list.sort(function(a,b){ return (b.downloads||0) - (a.downloads||0); });
   }
@@ -885,8 +903,9 @@ function renderModGrid(){
     var empty = $("modEmpty");
     if(empty){
       empty.classList.remove("hide");
-      empty.querySelector(".em-title").textContent = state.cat === "favorites" ? T("empty_fav_t") : T("empty_nf_t");
-      empty.querySelector(".em-sub").textContent = state.cat === "favorites" ? T("empty_fav_s") : T("empty_nf_s");
+      var noFavorites = state.cat === "favorites" && !state.q && !state.edition;
+      empty.querySelector(".em-title").textContent = noFavorites ? T("empty_fav_t") : T("empty_nf_t");
+      empty.querySelector(".em-sub").textContent = noFavorites ? T("empty_fav_s") : T("reset_filters");
     }
   } else {
     var empty2 = $("modEmpty");
@@ -900,14 +919,21 @@ function renderMods(){
     '<div class="search"><span class="ico">🔍</span>' +
       '<input id="modSearch" type="text" placeholder="' + T("search_ph") + '" value="' + esc(state.q) + '" autocomplete="off"></div>' +
     '<div class="cats" id="cats">' + cats.map(catChip).join("") + '</div>' +
+    '<div class="field"><label for="editionFilter">' + T("edition_l") + '</label>' +
+      '<select id="editionFilter">' +
+        '<option value="">' + T("edition_all") + '</option>' +
+        '<option value="java">Java</option><option value="bedrock">Bedrock</option>' +
+        '<option value="unknown">' + T("edition_unknown") + '</option></select></div>' +
     '<div class="section-title"><h2>' + T("sec_mods") + '</h2><span class="count" id="modCount"></span></div>' +
     '<div class="seg" style="margin-bottom:12px;max-width:260px">' +
       '<button data-action="sort" data-sort="new" class="' + (state.sort==="new"?"active":"") + '">' + T("sort_new") + '</button>' +
       '<button data-action="sort" data-sort="top" class="' + (state.sort==="top"?"active":"") + '">' + T("sort_top") + '</button></div>' +
     '<div class="grid" id="modGrid"></div>' +
     '<div class="empty hide" id="modEmpty"><div class="e">📭</div>' +
-      '<h3 class="em-title">' + T("empty_none_t") + '</h3><p class="em-sub"></p></div>' +
+      '<h3 class="em-title">' + T("empty_none_t") + '</h3><p class="em-sub"></p>' +
+      '<button class="btn ghost" data-action="reset-filters">' + T("reset_filters") + '</button></div>' +
     '<div class="foot">MODHUB • @' + esc(state.bot_username || "") + '</div>';
+  $("editionFilter").value = state.edition;
   renderModGrid();
 }
 
@@ -1230,6 +1256,11 @@ function openModal(html, wide){
 }
 function closeModal(){
   clearInterval(chatTimer);
+  clearChatPhoto();
+  Object.keys(chatPhotos).forEach(function(id){
+    chatPhotos[id].then(function(url){ URL.revokeObjectURL(url); }).catch(function(){});
+  });
+  chatPhotos = {};
   modalWrap.classList.remove("open");
   if(!sheet.classList.contains("open")) document.body.style.overflow = "";
 }
@@ -1270,6 +1301,7 @@ function openAddMod(){
       '<div class="field"><label>' + T("f_files") + '</label>' +
         '<input class="file-in" type="file" name="files" multiple></div>' +
       '<label class="checkline"><input type="checkbox" name="publish" value="1"> ' + T("pub_chk") + '</label>' +
+      '<div class="card hide" id="duplicateWarning" role="alert"></div>' +
       '<button class="btn primary block" type="submit" id="addModBtn">📤 ' + T("upload").replace("📤 ","") + '</button>' +
     '</form>');
 }
@@ -1381,14 +1413,45 @@ function openGroups(){
     '</div>');
 }
 var chatTimer = null;
+var chatPhotos = {};
+var chatPreviewUrl = "";
+function clearChatPhoto(keepInput){
+  var input = $("chatPhotoInput"), preview = $("chatPhotoPreview");
+  if(preview){
+    preview.querySelectorAll("img").forEach(function(img){ img.removeAttribute("src"); });
+    preview.innerHTML = ""; preview.classList.add("hide");
+  }
+  if(chatPreviewUrl) URL.revokeObjectURL(chatPreviewUrl);
+  chatPreviewUrl = "";
+  if(input && !keepInput) input.value = "";
+}
 function chatBubble(m){
   var side = m.from === "user" ? "user" : "admin";
   var tag = side === "admin" ? '<b style="font-size:10px;color:var(--accent)">' + T("admin_tag") + '</b><br>' : "";
-  return '<div class="msg ' + side + '">' + tag + esc(m.text) +
+  var photo = m.has_photo ? '<img class="chat-photo" data-chat-photo="' + esc(m.id) + '" alt="' + esc(T("photo_l")) + '">' : "";
+  return '<div class="msg ' + side + '">' + tag + photo + esc(m.text) +
     '<span class="md">' + esc(m.date || "") + '</span></div>';
 }
+function loadChatPhotos(thread){
+  var cache = chatPhotos;
+  thread.querySelectorAll("[data-chat-photo]").forEach(function(img){
+    var id = img.dataset.chatPhoto;
+    if(!cache[id]){
+      cache[id] = fetch("/api/message_photo", {method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({init_data:(tg && tg.initData) || "", dev_user:DEV, message_id:id})})
+        .then(function(r){ if(!r.ok) throw new Error("Photo unavailable"); return r.blob(); })
+        .then(function(blob){ return URL.createObjectURL(blob); });
+    }
+    cache[id].then(function(url){
+      if(chatPhotos === cache && img.isConnected){
+        img.src = url;
+        img.onload = function(){ thread.scrollTop = thread.scrollHeight; };
+      }
+    }).catch(function(){ if(img.isConnected) img.alt = T("photo_unavailable"); });
+  });
+}
 function loadThread(){
-  api("/api/messages").then(function(r){
+  return api("/api/messages").then(function(r){
     var el = $("chatThread");
     if(!el) return;
     if(!r.ok){
@@ -1400,6 +1463,7 @@ function loadThread(){
       el.innerHTML = '<div class="muted small" style="padding:10px 0;text-align:center">' + T("empty_thread") + '</div>';
     } else {
       el.innerHTML = list.map(chatBubble).join("");
+      loadChatPhotos(el);
       el.scrollTop = el.scrollHeight;
     }
     updateUnread(0);
@@ -1409,8 +1473,11 @@ function openSupport(){
   openModal('<div class="m-head"><h3>' + T("support_t") + '</h3>' +
     '<button class="m-close" data-action="close-modal">✕</button></div>' +
     '<div class="thread" id="chatThread"><div class="muted small" style="padding:10px 0">' + T("loading") + '</div></div>' +
-    '<div class="chat-box"><input id="chatInput" type="text" maxlength="1500" placeholder="' + T("chat_ph") + '">' +
+    '<div class="chat-box"><label class="btn ghost" for="chatPhotoInput">' + T("photo_l") + '</label>' +
+    '<input id="chatPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" class="hide">' +
+    '<input id="chatInput" type="text" maxlength="1500" placeholder="' + T("chat_ph") + '">' +
     '<button data-action="send-chat">➤</button></div>' +
+    '<div id="chatPhotoPreview" class="hide"></div>' +
     '<p class="hint" style="margin-top:10px">' + T("chat_hint") + esc(state.support) + '</p>');
   loadThread();
   clearInterval(chatTimer);
@@ -1421,14 +1488,26 @@ function openSupport(){
 }
 
 /* ---------- admin actions ---------- */
-function submitModForm(form){
-  var fd = new FormData(form);
+function submitModForm(form, allowDuplicate){
   var btn = $("addModBtn");
+  if(btn && btn.disabled) return;
+  var fd = new FormData(form);
+  var warning = $("duplicateWarning");
+  if(warning) warning.classList.add("hide");
   if(btn){ btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ' + T("uploading"); }
+  if(allowDuplicate) fd.set("allow_duplicate", "1");
   if(!form.publish.checked) fd.delete("publish"); else fd.set("publish", "1");
   apiForm("/api/admin/mod_add", fd).then(function(r){
     if(!r.ok){
-      toast(r.error || T("err_generic"), true);
+      if(r.duplicates && warning){
+        warning.innerHTML = '<h3>' + T("duplicate_t") + '</h3><p>' + T("duplicate_s") + '</p>' +
+          '<ul>' + r.duplicates.map(function(d){
+            return '<li>' + esc(d.uploaded_name) + ' — ' + esc(d.name) + '</li>';
+          }).join("") + '</ul><div class="form-actions">' +
+          '<button class="btn ghost" type="button" data-action="duplicate-other">' + T("duplicate_no") + '</button>' +
+          '<button class="btn danger" type="button" data-action="duplicate-confirm">' + T("duplicate_yes") + '</button></div>';
+        warning.classList.remove("hide");
+      } else toast(r.error || T("err_generic"), true);
       if(btn){ btn.disabled = false; btn.textContent = T("upload").replace("📤 ",""); }
       return;
     }
@@ -1454,13 +1533,7 @@ function submitEditForm(form){
   }).then(function(r){
     if(!r.ok){ toast(r.error || T("err_generic"), true); return; }
     var m = state.mods.filter(function(x){ return x.id === id; })[0];
-    if(m){
-      m.name = fd.get("name");
-      m.description = fd.get("description");
-      m.category = fd.get("category");
-      var cat = (state.categories||[]).filter(function(c){ return c.id === m.category; })[0];
-      m.category_name = cat ? (cat.icon + " " + cat.name) : m.category;
-    }
+    if(m) Object.assign(m, r.mod);
     closeModal();
     haptic("ok");
     toast(T("saved_ok"));
@@ -1473,6 +1546,14 @@ function handleAction(a, el){
   switch(a){
     case "retry": location.reload(); break;
     case "tab": setTab(el.dataset.tab); break;
+    case "reset-filters":
+      state.edition = ""; state.q = ""; state.cat = "all";
+      renderMods(); break;
+    case "duplicate-confirm": submitModForm($("addModForm"), true); break;
+    case "duplicate-other":
+      $("addModForm").elements.files.value = "";
+      $("duplicateWarning").classList.add("hide");
+      $("addModForm").elements.files.click(); break;
     case "cat":
       state.cat = el.dataset.cat;
       document.querySelectorAll('#cats .chip').forEach(function(c){
@@ -1570,20 +1651,25 @@ function handleAction(a, el){
       break;
     }
     case "open-support": openSupport(); break;
+    case "remove-chat-photo": clearChatPhoto(); break;
     case "send-chat": {
-      var ci = $("chatInput");
-      if(!ci || !ci.value.trim()) return;
-      var txt = ci.value.trim();
-      var th = $("chatThread");
-      if(th){
-        if(th.querySelector(".muted")) th.innerHTML = "";
-        th.insertAdjacentHTML("beforeend", chatBubble({from:"user", text:txt, date:""}));
-        th.scrollTop = th.scrollHeight;
-      }
-      ci.value = "";
-      api("/api/contact", {text:txt}).then(function(){
-        loadThread();
-      }).catch(function(){ loadThread(); });
+      var ci = $("chatInput"), cp = $("chatPhotoInput");
+      if(!ci || el.disabled) return;
+      var txt = ci.value.trim(), image = cp && cp.files && cp.files[0];
+      if(!txt && !image) return;
+      var fd = new FormData();
+      fd.append("text", txt);
+      if(image) fd.append("photo", image, image.name);
+      el.disabled = true; ci.disabled = true;
+      if(cp) cp.disabled = true;
+      apiForm("/api/contact", fd).then(function(r){
+        if(!r.ok){ toast(r.error || T("err_generic"), true); return; }
+        if(ci.isConnected){ ci.value = ""; clearChatPhoto(); loadThread(); }
+        if(!r.sent) toast(T("chat_saved"), true);
+      }).catch(function(){ toast(T("net_err"), true); }).then(function(){
+        el.disabled = false; ci.disabled = false;
+        if(cp) cp.disabled = false;
+      });
       break;
     }
     case "admin-refresh": loadAdmin(); toast(T("refreshing")); break;
@@ -1729,6 +1815,26 @@ document.addEventListener("click", function(e){
 });
 modalWrap.addEventListener("click", function(e){
   if(e.target === modalWrap) closeModal();
+});
+document.addEventListener("change", function(e){
+  if(e.target.id === "editionFilter"){
+    state.edition = e.target.value;
+    renderModGrid();
+  }
+  if(e.target.form && e.target.form.id === "addModForm" && e.target.name === "files"){
+    $("duplicateWarning").classList.add("hide");
+  }
+  if(e.target.id === "chatPhotoInput"){
+    clearChatPhoto(true);
+    var file = e.target.files && e.target.files[0];
+    if(!file){ clearChatPhoto(); return; }
+    if(file.size > 6 * 1024 * 1024){ clearChatPhoto(); toast(T("avatar_big"), true); return; }
+    if(!/^image\/(jpeg|png|webp)$/.test(file.type)){ clearChatPhoto(); toast(T("photo_bad"), true); return; }
+    chatPreviewUrl = URL.createObjectURL(file);
+    $("chatPhotoPreview").innerHTML = '<img src="' + esc(chatPreviewUrl) + '" alt="' + esc(T("photo_l")) + '">' +
+      '<button class="btn ghost sm" type="button" data-action="remove-chat-photo">' + T("photo_remove") + '</button>';
+    $("chatPhotoPreview").classList.remove("hide");
+  }
 });
 document.addEventListener("input", function(e){
   if(e.target.id === "modSearch"){

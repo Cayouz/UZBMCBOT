@@ -129,6 +129,7 @@ def mod_json(mid, m, favs, lang="uz"):
         "description": tr.get("description") or m.get("description", "") or "",
         "category": m.get("category", "minecraft"),
         "category_name": cat_label(m.get("category", "minecraft")),
+        "editions": storage.mod_editions(m),
         "date": m.get("date", ""),
         "downloads": m.get("downloads", 0),
         "photos": ["/photo/%s/%d" % (mid, i) for i in range(len(photos))],
@@ -182,7 +183,7 @@ def save_uploaded(content, orig_name, prefix, directory=None):
                    ".mcaddon", ".mcworld", ".jar", ".rar", ".7z", ".txt", ".pdf"):
         ext = ".jpg" if not orig_name else ext[:8]
     safe = storage.safe_filename(os.path.splitext(orig_name or "")[0])[:40]
-    fn = "%s_%d_%s%s" % (prefix, int(time.time() * 1000), safe, ext)
+    fn = "%s_%d_%s_%s%s" % (prefix, int(time.time() * 1000), os.urandom(8).hex(), safe, ext)
     path = os.path.join(directory or config.MODS_DIR, fn)
     with open(path, "wb") as f:
         f.write(content)
@@ -297,7 +298,7 @@ class WebHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
-    def _file(self, path, download_name=None):
+    def _file(self, path, download_name=None, private=False):
         try:
             size = os.path.getsize(path)
             ctype = mimetypes.guess_type(path)[0] or "application/octet-stream"
@@ -308,6 +309,9 @@ class WebHandler(BaseHTTPRequestHandler):
                 self.send_header("Content-Disposition",
                                  "attachment; filename*=UTF-8''%s" % urllib.parse.quote(download_name))
                 self.send_header("Cache-Control", "no-store")
+            elif private:
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
             else:
                 self.send_header("Cache-Control", "public, max-age=86400")
             self.end_headers()
@@ -486,6 +490,8 @@ class WebHandler(BaseHTTPRequestHandler):
                 safe_mid, idx, storage.safe_filename(name)))
             if not os.path.exists(path) and not tg.download_file(fid, path):
                 return self._json({"ok": False, "error": "Fayl yuklanmadi"}, 404)
+        f["file_path"] = path
+        storage.file_sha256(f)
         mod["downloads"] = mod.get("downloads", 0) + 1
         storage.save_data()
         self._file(path, name)
@@ -515,9 +521,11 @@ class WebHandler(BaseHTTPRequestHandler):
             if path == "/api/check_sub":
                 return self._api_check_sub(payload)
             if path == "/api/contact":
-                return self._api_contact(payload)
+                return self._api_contact(payload, files)
             if path == "/api/messages":
                 return self._api_messages(payload)
+            if path == "/api/message_photo":
+                return self._api_message_photo(payload)
             if path.startswith("/api/admin/"):
                 return self._api_admin(path, payload, files)
             self._json({"ok": False, "error": "Topilmadi"}, 404)
@@ -706,9 +714,35 @@ class WebHandler(BaseHTTPRequestHandler):
             return self._json({"ok": False, "error": "Avtorizatsiya xatosi"}, 401)
         if is_blocked_now(user["id"]):
             return self._json({"ok": False, "blocked": True, "error": "Bloklangansiz"}, 403)
-        msgs = storage.get_messages(user["id"])
+        msgs = [{"id": m.get("id", ""), "from": m.get("from", ""),
+                 "text": m.get("text", ""), "date": m.get("date", ""),
+                 "read": m.get("read", False), "has_photo": bool(m.get("photo"))}
+                for m in storage.get_messages(user["id"])]
         storage.mark_messages_read(user["id"])
         return self._json({"ok": True, "messages": msgs, "unread": 0})
+
+    def _api_message_photo(self, payload):
+        user = auth(payload)
+        if not user:
+            return self._json({"ok": False, "error": "Avtorizatsiya xatosi"}, 401)
+        if is_blocked_now(user["id"]):
+            return self._json({"ok": False, "error": "Bloklangansiz"}, 403)
+        mid = str(payload.get("message_id") or "")
+        message = next((m for m in storage.get_messages(user["id"])
+                        if m.get("id") == mid and m.get("photo")), None)
+        if not message:
+            return self._json({"ok": False, "error": "Rasm topilmadi"}, 404)
+        photo = message["photo"]
+        path = photo.get("path") or ""
+        if not path or not os.path.isfile(path):
+            directory = os.path.join(config.BASE_DIR, "chat_photos")
+            os.makedirs(directory, exist_ok=True)
+            path = os.path.join(directory, "msg_%s.jpg" % message["id"])
+            if not photo.get("file_id") or not tg.download_file(photo["file_id"], path):
+                return self._json({"ok": False, "error": "Rasm yuklanmadi"}, 404)
+            photo["path"] = path
+            storage.save_data()
+        return self._file(path, private=True)
 
     def _api_check_sub(self, payload):
         user = auth(payload)
@@ -722,19 +756,48 @@ class WebHandler(BaseHTTPRequestHandler):
             "channels": storage.data.get("channels", []),
         })
 
-    def _api_contact(self, payload):
+    def _api_contact(self, payload, files):
         user = auth(payload)
         if not user:
             return self._json({"ok": False, "error": "Avtorizatsiya xatosi"}, 401)
         if is_blocked_now(user["id"]):
             return self._json({"ok": False, "blocked": True, "error": "Bloklangansiz"}, 403)
         text = str(payload.get("text") or "").strip()[:1500]
-        if not text:
+        uploads = [f for f in files if f["field"] == "photo" and f["content"]]
+        if len(uploads) > 1:
+            return self._json({"ok": False, "error": "Bir xabarda bitta rasm yuboring"}, 400)
+        if not text and not uploads:
             return self._json({"ok": False, "error": "Xabar bo'sh"}, 400)
-        storage.add_message(user["id"], "user", text)
-        import bot
+        photo = None
+        if uploads:
+            content = uploads[0]["content"]
+            if len(content) > 6 * 1024 * 1024:
+                return self._json({"ok": False, "error": "Rasm 6MB dan kichik bo'lsin"}, 400)
+            if content.startswith(b"\xff\xd8\xff"):
+                ext = ".jpg"
+            elif content.startswith(b"\x89PNG\r\n\x1a\n"):
+                ext = ".png"
+            elif content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+                ext = ".webp"
+            else:
+                return self._json({"ok": False, "error": "JPG, PNG yoki WebP rasm yuboring"}, 400)
+            directory = os.path.join(config.BASE_DIR, "chat_photos")
+            os.makedirs(directory, exist_ok=True)
+            path = save_uploaded(content, "chat" + ext, os.urandom(16).hex(), directory)
+            photo = {"path": path, "file_id": ""}
+        item = storage.add_message(user["id"], "user", text, photo=photo)
         sent = 0
         for admin_id in storage.data.get("admins", []):
+            photo_ok = True
+            if photo:
+                res_photo = tg.send_photo(admin_id, photo["path"], caption=_esc(text[:1024]))
+                photo_ok = bool(res_photo.get("ok"))
+                if photo_ok:
+                    sizes = (res_photo.get("result") or {}).get("photo") or []
+                    if sizes:
+                        item["photo"]["file_id"] = sizes[-1].get("file_id", "")
+                    storage.register_reply(res_photo["result"]["message_id"], user["id"],
+                                           user["id"], user["name"])
             msg = ("📩 <b>Yangi xabar (Saytdan)</b>\n\n"
                    "👤 <b>%s</b> (ID: <code>%s</code>)\n"
                    "💬 %s\n📅 %s\n\n"
@@ -743,10 +806,12 @@ class WebHandler(BaseHTTPRequestHandler):
             kb = tg.inline_kb([[tg.button("👤 Profil", url="tg://user?id=%s" % user["id"])]])
             res = tg.send_message(admin_id, msg, kb)
             if res.get("ok"):
-                sent += 1
+                if photo_ok:
+                    sent += 1
                 storage.register_reply(res["result"]["message_id"], user["id"],
                                        user["id"], user["name"])
-        return self._json({"ok": sent > 0, "sent": sent})
+        storage.save_data()
+        return self._json({"ok": True, "sent": sent})
 
     # ---------- ADMIN APIs ----------
     def _api_admin(self, path, payload, files):
@@ -807,7 +872,8 @@ class WebHandler(BaseHTTPRequestHandler):
                 mod["tr"] = {}
                 import translate
                 translate.translate_mod_later(mid, delay=2)
-            return self._json({"ok": True})
+            favs = set((storage.get_user(user["id"]) or {}).get("favorites", []))
+            return self._json({"ok": True, "mod": mod_json(mid, mod, favs, user_lang(user["id"]))})
 
         if action == "mod_delete":
             mid = str(payload.get("mod_id") or "")
@@ -962,6 +1028,19 @@ class WebHandler(BaseHTTPRequestHandler):
         if not files_in:
             return self._json({"ok": False, "error": "Kamida 1 ta mod fayli yuklang"}, 400)
 
+        candidates = []
+        duplicates = []
+        for f in files_in:
+            f["sha256"] = hashlib.sha256(f["content"]).hexdigest()
+            candidate = {"sha256": f["sha256"], "file_name": f["filename"]}
+            match = storage.find_duplicate_file(candidate, candidates)
+            if match:
+                duplicates.append(dict(match, uploaded_name=f["filename"]))
+            candidates.append(candidate)
+        if duplicates and str(payload.get("allow_duplicate") or "") != "1":
+            return self._json({"ok": False, "duplicates": duplicates,
+                               "error": "Bu mod fayli allaqachon mavjud"}, 409)
+
         mod_id = "mod_%d_%s" % (int(time.time()), os.urandom(2).hex())
         photos = []
         for p in photos_in:
@@ -970,7 +1049,8 @@ class WebHandler(BaseHTTPRequestHandler):
         file_list = []
         for f in files_in:
             path = save_uploaded(f["content"], f["filename"] or "file.zip", mod_id)
-            file_list.append({"file_id": "", "file_name": f["filename"] or "fayl", "file_path": path})
+            file_list.append({"file_id": "", "file_name": f["filename"] or "fayl",
+                              "file_path": path, "sha256": f["sha256"]})
 
         mod = {
             "id": mod_id,
@@ -1018,9 +1098,11 @@ class WebHandler(BaseHTTPRequestHandler):
                 if f.get("file_id") or not (path and os.path.exists(path)):
                     continue
                 res = tg.send_document(admin_id, path, silent=True)
-                fid = ((res.get("result") or {}).get("document") or {}).get("file_id")
+                document = (res.get("result") or {}).get("document") or {}
+                fid = document.get("file_id")
                 if fid:
                     f["file_id"] = fid
+                    f["file_unique_id"] = document.get("file_unique_id", "")
                     changed = True
             if changed:
                 storage.save_data()

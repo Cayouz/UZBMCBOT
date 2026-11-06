@@ -1,9 +1,11 @@
+import hashlib
 import json
 import os
 import re
 import threading
 import time
 import datetime
+import uuid
 
 import config
 
@@ -345,10 +347,15 @@ def set_settings(user_id, settings):
 
 
 # ---------------- XABARLAR (site chat) ----------------
-def add_message(user_id, frm, text):
+def add_message(user_id, frm, text, photo=None):
     box = data.setdefault("messages", {}).setdefault(str(user_id), [])
-    box.append({"from": frm, "text": str(text)[:1500], "date": _now(), "read": frm == "user"})
+    item = {"id": uuid.uuid4().hex, "from": frm, "text": str(text)[:1500],
+            "date": _now(), "read": frm == "user"}
+    if photo is not None:
+        item["photo"] = {"file_id": photo.get("file_id") or "", "path": photo.get("path") or ""}
+    box.append(item)
     save_data()
+    return item
 
 
 def get_messages(user_id):
@@ -449,13 +456,38 @@ def get_state(user_id):
     return data.get("states", {}).get(str(user_id), {})
 
 
+def discard_pending_duplicate(sd, keep_files=()):
+    pending = sd.get("pending_duplicate") or {}
+    token = pending.get("token") or ""
+    path = (pending.get("file") or {}).get("file_path") or ""
+    if not re.fullmatch(r"[0-9a-f]{32}", token) or not path:
+        return
+    if (os.path.dirname(os.path.realpath(path)) != os.path.realpath(config.MODS_DIR)
+            or not os.path.basename(path).startswith("upload_%s_" % token)):
+        return
+    retained = list(keep_files) + list(sd.get("files") or [])
+    for mod in data.get("mods", {}).values():
+        retained.extend(mod.get("files") or [])
+    if any(os.path.realpath(f.get("file_path") or "") == os.path.realpath(path) for f in retained):
+        return
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
 def set_state(user_id, state, extra=None):
+    old = get_state(user_id).get("data", {})
+    pending = old.get("pending_duplicate")
+    if pending and (state != "upload_files" or pending != (extra or {}).get("pending_duplicate")):
+        discard_pending_duplicate(old, (extra or {}).get("files") or [])
     data.setdefault("states", {})[str(user_id)] = {"state": state, "data": extra or {}}
     save_data()
 
 
 def clear_state(user_id):
     if str(user_id) in data.get("states", {}):
+        discard_pending_duplicate(get_state(user_id).get("data", {}))
         del data["states"][str(user_id)]
         save_data()
 
@@ -488,6 +520,65 @@ def web_live_count():
 
 
 # ---------------- MODS HELPERS ----------------
+def mod_editions(mod):
+    editions = set()
+    for text in (mod.get("description") or "", mod.get("name") or ""):
+        if re.search(r"\bjava\b", text, re.IGNORECASE):
+            editions.add("java")
+        if re.search(r"\b(?:bedrock|mcpe|pocket\s+edition)\b", text, re.IGNORECASE):
+            editions.add("bedrock")
+        if editions:
+            break
+    if not editions:
+        for record in mod.get("files") or []:
+            ext = os.path.splitext(record.get("file_name") or record.get("file_path") or "")[1].lower()
+            if ext == ".jar":
+                editions.add("java")
+            elif ext in (".mcaddon", ".mcpack", ".mcworld"):
+                editions.add("bedrock")
+    return [edition for edition in ("java", "bedrock") if edition in editions]
+
+
+def file_sha256(record):
+    cached = record.get("sha256") or ""
+    if cached:
+        return cached
+    path = record.get("file_path") or ""
+    if not path:
+        return ""
+    try:
+        digest = hashlib.sha256()
+        with open(path, "rb") as file:
+            for chunk in iter(lambda: file.read(1024 * 1024), b""):
+                digest.update(chunk)
+        record["sha256"] = digest.hexdigest()
+        return record["sha256"]
+    except (OSError, TypeError, ValueError):
+        return ""
+
+
+def find_duplicate_file(candidate, pending_files=()):
+    sha256 = file_sha256(candidate)
+
+    def matches(record):
+        for key in ("file_unique_id", "file_id"):
+            value = candidate.get(key)
+            if value and value == record.get(key):
+                return True
+        existing_sha256 = file_sha256(record) if sha256 else ""
+        return bool(sha256 and existing_sha256 and sha256.lower() == existing_sha256.lower())
+
+    for record in pending_files:
+        if matches(record):
+            return {"mod_id": "", "name": "Joriy yuklash", "file_name": record.get("file_name") or ""}
+    for mod_id, mod in data.get("mods", {}).items():
+        for record in mod.get("files") or []:
+            if matches(record):
+                return {"mod_id": mod_id, "name": mod.get("name") or "Joriy yuklash",
+                        "file_name": record.get("file_name") or ""}
+    return None
+
+
 def mod_photos(m):
     photos = m.get("photos") or []
     out = []
