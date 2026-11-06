@@ -132,7 +132,9 @@ def mod_json(mid, m, favs, lang="uz"):
         "editions": storage.mod_editions(m),
         "date": m.get("date", ""),
         "downloads": m.get("downloads", 0),
-        "photos": ["/photo/%s/%d" % (mid, i) for i in range(len(photos))],
+        "photos": ["/photo/%s/%d%s" % (
+            mid, i, "?v=" + urllib.parse.quote(str(m["photo_revision"])) if m.get("photo_revision") else "")
+            for i in range(len(photos))],
         "files": [
             {"name": f.get("file_name") or "fayl", "url": "/download/%s/%d" % (mid, i)}
             for i, f in enumerate(files)
@@ -468,7 +470,8 @@ class WebHandler(BaseHTTPRequestHandler):
             if not fid:
                 return self._json({"ok": False, "error": "Rasm yo'q"}, 404)
             safe_mid = re.sub(r"[^\w.-]", "_", mid)
-            path = os.path.join(config.MODS_DIR, "cache_%s_%d.jpg" % (safe_mid, idx))
+            media_key = hashlib.sha256(fid.encode()).hexdigest()[:16]
+            path = os.path.join(config.MODS_DIR, "cache_%s_%d_%s.jpg" % (safe_mid, idx, media_key))
             if not os.path.exists(path) and not tg.download_file(fid, path):
                 return self._json({"ok": False, "error": "Rasm yuklanmadi"}, 404)
         self._file(path)
@@ -486,8 +489,9 @@ class WebHandler(BaseHTTPRequestHandler):
             if not fid:
                 return self._json({"ok": False, "error": "Fayl serverda yo'q"}, 404)
             safe_mid = re.sub(r"[^\w.-]", "_", mid)
-            path = os.path.join(config.MODS_DIR, "cache_dl_%s_%d_%s" % (
-                safe_mid, idx, storage.safe_filename(name)))
+            media_key = hashlib.sha256(fid.encode()).hexdigest()[:16]
+            path = os.path.join(config.MODS_DIR, "cache_dl_%s_%d_%s_%s" % (
+                safe_mid, idx, media_key, storage.safe_filename(name)))
             if not os.path.exists(path) and not tg.download_file(fid, path):
                 return self._json({"ok": False, "error": "Fayl yuklanmadi"}, 404)
         f["file_path"] = path
@@ -855,25 +859,19 @@ class WebHandler(BaseHTTPRequestHandler):
         if action == "mod_add":
             return self._admin_mod_add(payload, files, user)
 
-        if action == "mod_edit":
+        if action == "mod_get":
             mid = str(payload.get("mod_id") or "")
             mod = storage.data.get("mods", {}).get(mid)
             if not mod:
                 return self._json({"ok": False, "error": "Mod topilmadi"}, 404)
-            if payload.get("name"):
-                mod["name"] = str(payload["name"]).strip()[:120]
-            if "description" in payload:
-                mod["description"] = str(payload.get("description") or "").strip()[:2000]
-            cat = str(payload.get("category") or "")
-            if cat in config.CATEGORY_MAP and cat not in ("all", "favorites"):
-                mod["category"] = cat
-            storage.save_data()
-            if payload.get("name") or "description" in payload:
-                mod["tr"] = {}
-                import translate
-                translate.translate_mod_later(mid, delay=2)
-            favs = set((storage.get_user(user["id"]) or {}).get("favorites", []))
-            return self._json({"ok": True, "mod": mod_json(mid, mod, favs, user_lang(user["id"]))})
+            result = mod_json(mid, mod, set())
+            result["name"] = mod.get("name") or ""
+            result["description"] = mod.get("description") or ""
+            result["link"] = "https://t.me/%s?start=%s" % (config.BOT_USERNAME, mid)
+            return self._json({"ok": True, "mod": result})
+
+        if action == "mod_edit":
+            return self._admin_mod_edit(payload, files, user)
 
         if action == "mod_delete":
             mid = str(payload.get("mod_id") or "")
@@ -1005,6 +1003,92 @@ class WebHandler(BaseHTTPRequestHandler):
 
         return self._json({"ok": False, "error": "Noma'lum amal"}, 404)
 
+    def _admin_mod_edit(self, payload, files, user):
+        mid = str(payload.get("mod_id") or "")
+        mod = storage.data.get("mods", {}).get(mid)
+        if not mod:
+            return self._json({"ok": False, "error": "Mod topilmadi"}, 404)
+        updates = {}
+        if "name" in payload:
+            name = str(payload.get("name") or "").strip()[:120]
+            if not name:
+                return self._json({"ok": False, "error": "Mod nomini kiriting"}, 400)
+            updates["name"] = name
+        if "description" in payload:
+            updates["description"] = str(payload.get("description") or "").strip()[:2000]
+        if "category" in payload:
+            cat = str(payload.get("category") or "")
+            if cat not in config.MOD_CATEGORY_IDS:
+                return self._json({"ok": False, "error": "Kategoriyani tanlang"}, 400)
+            updates["category"] = cat
+        photos_in = [f for f in files if f["field"] == "photos" and f["filename"]]
+        files_in = [f for f in files if f["field"] == "files" and f["filename"]]
+        if len(photos_in) > config.MAX_UPLOAD_PHOTOS or len(files_in) > config.MAX_MOD_FILES:
+            return self._json({"ok": False, "error": "Ko'pi bilan 5 ta rasm va 10 ta fayl tanlang"}, 400)
+        for p in photos_in:
+            content = p["content"]
+            if len(content) > MAX_PHOTO_BYTES:
+                return self._json({"ok": False, "error": "Har bir rasm 12MB dan kichik bo'lsin"}, 400)
+            if content.startswith(b"\xff\xd8\xff"):
+                p["ext"] = ".jpg"
+            elif content.startswith(b"\x89PNG\r\n\x1a\n"):
+                p["ext"] = ".png"
+            elif content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+                p["ext"] = ".webp"
+            elif content[:6] in (b"GIF87a", b"GIF89a"):
+                p["ext"] = ".gif"
+            else:
+                return self._json({"ok": False, "error": "JPG, PNG, WebP yoki GIF rasm tanlang"}, 400)
+        candidates = []
+        duplicates = []
+        for f in files_in:
+            if not f["content"]:
+                return self._json({"ok": False, "error": "Bo'sh mod faylini yuklab bo'lmaydi"}, 400)
+            if len(f["content"]) > MAX_FILE_BYTES:
+                return self._json({"ok": False, "error": "Har bir fayl 50MB dan kichik bo'lsin"}, 400)
+            f["sha256"] = hashlib.sha256(f["content"]).hexdigest()
+            candidate = {"sha256": f["sha256"], "file_name": f["filename"]}
+            match = storage.find_duplicate_file(candidate, candidates, exclude_mod_id=mid)
+            if match:
+                duplicates.append(dict(match, uploaded_name=f["filename"]))
+            candidates.append(candidate)
+        if duplicates and str(payload.get("allow_duplicate") or "") != "1":
+            return self._json({"ok": False, "duplicates": duplicates,
+                               "error": "Bu mod fayli allaqachon mavjud"}, 409)
+        if (photos_in or files_in) and str(payload.get("confirm_replace") or "") != "1":
+            return self._json({"ok": False, "confirm_replace": True,
+                               "error": "Rasm yoki fayllarni almashtirishni tasdiqlang"}, 409)
+        if photos_in:
+            photos = []
+            for p in photos_in:
+                name = os.path.splitext(p["filename"])[0] + p["ext"]
+                path = save_uploaded(p["content"], name, mid)
+                photos.append({"file_id": "", "path": path})
+            updates.update(photos=photos, cover_file=photos[0]["path"], cover_id="",
+                           photo_revision=os.urandom(8).hex())
+        if files_in:
+            file_list = []
+            for f in files_in:
+                path = save_uploaded(f["content"], f["filename"], mid)
+                file_list.append({"file_id": "", "file_unique_id": "", "file_name": f["filename"],
+                                  "file_path": path, "sha256": f["sha256"]})
+            updates["files"] = file_list
+        text_changed = any(updates[key] != mod.get(key, "")
+                           for key in ("name", "description") if key in updates)
+        if text_changed:
+            updates["tr"] = {}
+        with storage._lock:
+            mod.update(updates)
+            storage.save_data()
+        if photos_in or files_in:
+            threading.Thread(target=self._persist_mod_media, args=(mid, user["id"]),
+                             daemon=True).start()
+        if text_changed:
+            import translate
+            translate.translate_mod_later(mid, delay=2)
+        favs = set((storage.get_user(user["id"]) or {}).get("favorites", []))
+        return self._json({"ok": True, "mod": mod_json(mid, mod, favs, user_lang(user["id"]))})
+
     def _admin_mod_add(self, payload, files, user):
         name = str(payload.get("name") or "").strip()[:120]
         desc = str(payload.get("description") or "").strip()[:2000]
@@ -1092,6 +1176,8 @@ class WebHandler(BaseHTTPRequestHandler):
                 sizes = (res.get("result") or {}).get("photo") or []
                 if sizes:
                     p["file_id"] = sizes[-1].get("file_id", "")
+                    if mod.get("photos") and mod["photos"][0] is p:
+                        mod["cover_id"] = p["file_id"]
                     changed = True
             for f in mod.get("files", []):
                 path = f.get("file_path") or ""

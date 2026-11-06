@@ -510,6 +510,9 @@ f_cat:"Kategoriya", f_photos:"Rasmlar (1–5 ta)", ph_hint:"Birinchi rasm asosiy
 f_files:"Fayllar (.mcaddon, .mcpack, .zip ...)", pub_chk:"Telegram kanalga ham joylash",
 upload:"📤 Yuklash", uploading:"Yuklanmoqda...",
 edit_t:"✏️ Tahrirlash", f_name2:"Nomi", f_desc2:"Tavsif", f_cat2:"Kategoriya", cancel2:"Bekor", save_btn:"💾 Saqlash", saved_ok:"✅ Saqlandi",
+edit_link:"Mod havolasi", edit_keep:"Havola, izohlar, saqlanganlar va yuklanish soni o'zgarmaydi.", edit_original:"Nomi va tavsifi asl tilda tahrirlanadi.",
+edit_photos:"Rasmlarni almashtirish (1–5 ta)", edit_files:"Fayllarni almashtirish (1–10 ta)", edit_media_hint:"Yangi tanlov shu bo'limdagi barcha eskilarini almashtiradi. Tanlamasangiz, avvalgisi qoladi.",
+edit_replace:"Tanlangan rasm yoki fayllar bilan eskilari almashtirilsinmi?", edit_confirm:"Ha, almashtirish", edit_back:"Tanlovga qaytish", edit_duplicate:"Bu fayl boshqa modda yoki joriy tanlovda mavjud. Baribir almashtirilsinmi?", edit_limits:"Ko'pi bilan 5 ta rasm va 10 ta fayl tanlang", edit_photo_bad:"JPG, PNG, WebP yoki GIF rasm tanlang", edit_photo_big:"Har bir rasm 12MB dan kichik bo'lsin", edit_file_bad:"Har bir mod fayli bo'sh bo'lmasin va 50MB dan oshmasin",
 bc_t:"📢 Xabar tarqatish", bc_label:"Xabar matni", bc_ph:"Barcha jonli foydalanuvchilarga yuboriladi...",
 bc_hint:"Bloklangan foydalanuvchilarga xabar yuborilmaydi. Tezkor rejim (20 parallel).", send:"🚀 Yuborish", sending2:"Yuborilmoqda...",
 ch_t:"📣 Obuna kanallari", no_channels2:"Kanallar yo'q.", f_new_ch:"Yangi kanal", ch_ph:"@kanal_username yoki -100...",
@@ -577,6 +580,9 @@ f_cat:"Category", f_photos:"Photos (1–5)", ph_hint:"The first photo will be th
 f_files:"Files (.mcaddon, .mcpack, .zip ...)", pub_chk:"Also publish to Telegram channel",
 upload:"📤 Upload", uploading:"Uploading...",
 edit_t:"✏️ Edit", f_name2:"Name", f_desc2:"Description", f_cat2:"Category", cancel2:"Cancel", save_btn:"💾 Save", saved_ok:"✅ Saved",
+edit_link:"Mod link", edit_keep:"The link, comments, saved entries and download count stay unchanged.", edit_original:"Name and description are edited in their original language.",
+edit_photos:"Replace photos (1–5)", edit_files:"Replace files (1–10)", edit_media_hint:"New selections replace all old items in this section. Leave empty to keep the current items.",
+edit_replace:"Replace the old photos or files with your selection?", edit_confirm:"Yes, replace", edit_back:"Back to selection", edit_duplicate:"This file exists in another mod or in this selection. Replace anyway?", edit_limits:"Select up to 5 photos and 10 files", edit_photo_bad:"Choose JPG, PNG, WebP or GIF photos", edit_photo_big:"Each photo must be under 12MB", edit_file_bad:"Each mod file must be nonempty and no larger than 50MB",
 bc_t:"📢 Broadcast", bc_label:"Message text", bc_ph:"Will be sent to all live users...",
 bc_hint:"Blocked users will not receive it. Fast mode (20 parallel).", send:"🚀 Send", sending2:"Sending...",
 ch_t:"📣 Subscription channels", no_channels2:"No channels.", f_new_ch:"New channel", ch_ph:"@channel_username or -100...",
@@ -644,6 +650,9 @@ f_cat:"Категория", f_photos:"Фото (1–5)", ph_hint:"Первое �
 f_files:"Файлы (.mcaddon, .mcpack, .zip ...)", pub_chk:"Также опубликовать в канал Telegram",
 upload:"📤 Загрузить", uploading:"Загрузка...",
 edit_t:"✏️ Редактировать", f_name2:"Название", f_desc2:"Описание", f_cat2:"Категория", cancel2:"Отмена", save_btn:"💾 Сохранить", saved_ok:"✅ Сохранено",
+edit_link:"Ссылка на мод", edit_keep:"Ссылка, комментарии, сохранения и число скачиваний не изменятся.", edit_original:"Название и описание редактируются на исходном языке.",
+edit_photos:"Заменить фото (1–5)", edit_files:"Заменить файлы (1–10)", edit_media_hint:"Новый выбор заменит все старые элементы этого раздела. Без выбора останутся прежние.",
+edit_replace:"Заменить старые фото или файлы выбранными?", edit_confirm:"Да, заменить", edit_back:"Вернуться к выбору", edit_duplicate:"Этот файл есть в другом моде или в текущем выборе. Всё равно заменить?", edit_limits:"Выберите не более 5 фото и 10 файлов", edit_photo_bad:"Выберите фото JPG, PNG, WebP или GIF", edit_photo_big:"Каждое фото должно быть меньше 12МБ", edit_file_bad:"Каждый файл мода должен быть непустым и не больше 50МБ",
 bc_t:"📢 Рассылка", bc_label:"Текст сообщения", bc_ph:"Будет отправлено всем живым пользователям...",
 bc_hint:"Заблокированные пользователи не получат сообщение. Быстрый режим (20 параллельно).", send:"🚀 Отправить", sending2:"Отправка...",
 ch_t:"📣 Каналы подписки", no_channels2:"Каналов нет.", f_new_ch:"Новый канал", ch_ph:"@channel_username или -100...",
@@ -1250,6 +1259,7 @@ function adminModsHTML(){
 
 /* ---------- modals ---------- */
 function openModal(html, wide){
+  clearEditPhotoPreview();
   modal.innerHTML = html;
   modalWrap.classList.add("open");
   document.body.style.overflow = "hidden";
@@ -1257,6 +1267,7 @@ function openModal(html, wide){
 function closeModal(){
   clearInterval(chatTimer);
   clearChatPhoto();
+  clearEditPhotoPreview();
   Object.keys(chatPhotos).forEach(function(id){
     chatPhotos[id].then(function(url){ URL.revokeObjectURL(url); }).catch(function(){});
   });
@@ -1305,18 +1316,51 @@ function openAddMod(){
       '<button class="btn primary block" type="submit" id="addModBtn">📤 ' + T("upload").replace("📤 ","") + '</button>' +
     '</form>');
 }
+var editPhotoUrls = [];
+function clearEditPhotoPreview(){
+  var preview = $("editPhotoPreview");
+  if(preview){
+    preview.querySelectorAll("img").forEach(function(img){ img.removeAttribute("src"); });
+    preview.innerHTML = "";
+  }
+  editPhotoUrls.forEach(function(url){ URL.revokeObjectURL(url); });
+  editPhotoUrls = [];
+}
 function openEditMod(id){
-  var m = state.mods.filter(function(x){ return x.id === id; })[0];
-  if(!m) return;
   openModal('<div class="m-head"><h3>' + T("edit_t") + '</h3>' +
     '<button class="m-close" data-action="close-modal">✕</button></div>' +
-    '<form id="editModForm" data-id="' + esc(m.id) + '">' +
-      '<div class="field"><label>' + T("f_name2") + '</label><input name="name" type="text" value="' + esc(m.name) + '" maxlength="120" required></div>' +
-      '<div class="field"><label>' + T("f_desc2") + '</label><textarea name="description" rows="4" maxlength="2000">' + esc(m.description) + '</textarea></div>' +
-      '<div class="field"><label>' + T("f_cat2") + '</label><select name="category">' + categoryOptions(m.category) + '</select></div>' +
-      '<div class="form-actions"><button class="btn ghost" type="button" data-action="close-modal">' + T("cancel2") + '</button>' +
-      '<button class="btn primary" type="submit">' + T("save_btn") + '</button></div>' +
-    '</form>');
+    '<p id="editModLoading" data-id="' + esc(id) + '" class="muted">' + T("loading") + '</p>');
+  return api("/api/admin/mod_get", {mod_id:id}).then(function(r){
+    var loading = $("editModLoading");
+    if(!modalWrap.classList.contains("open") || !loading || loading.dataset.id !== id) return;
+    if(!r.ok){ closeModal(); toast(r.error || T("err_generic"), true); return; }
+    var m = r.mod;
+    openModal('<div class="m-head"><h3>' + T("edit_t") + '</h3>' +
+      '<button class="m-close" data-action="close-modal">✕</button></div>' +
+      '<form id="editModForm" data-id="' + esc(m.id) + '">' +
+        '<div class="field"><label>' + T("edit_link") + '</label><input type="text" readonly data-action="select-edit-link" value="' + esc(m.link) + '">' +
+          '<div class="hint">' + T("edit_keep") + '</div></div>' +
+        '<div class="field"><label>' + T("f_name2") + '</label><input name="name" type="text" value="' + esc(m.name) + '" maxlength="120" required></div>' +
+        '<div class="field"><label>' + T("f_desc2") + '</label><textarea name="description" rows="4" maxlength="2000">' + esc(m.description) + '</textarea>' +
+          '<div class="hint">' + T("edit_original") + '</div></div>' +
+        '<div class="field"><label>' + T("f_cat2") + '</label><select name="category">' + categoryOptions(m.category) + '</select></div>' +
+        '<div class="field"><label>' + T("edit_photos") + '</label>' +
+          '<div class="preview">' + m.photos.map(function(url){ return '<img src="' + esc(url) + '" alt="">'; }).join("") + '</div>' +
+          '<input class="file-in" id="editModPhotos" type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>' +
+          '<div class="preview" id="editPhotoPreview"></div><div class="hint">' + T("edit_media_hint") + ' ' + T("ph_hint") + '</div></div>' +
+        '<div class="field"><label>' + T("edit_files") + '</label><ul>' +
+          m.files.map(function(f){ return '<li>' + esc(f.name) + '</li>'; }).join("") + '</ul>' +
+          '<input class="file-in" id="editModFiles" type="file" name="files" multiple>' +
+          '<div class="hint">' + T("edit_media_hint") + '</div></div>' +
+        '<div class="card hide" id="editWarning" role="alert"></div>' +
+        '<div class="form-actions"><button class="btn ghost" type="button" data-action="close-modal">' + T("cancel2") + '</button>' +
+        '<button class="btn primary" id="editModBtn" type="submit">' + T("save_btn") + '</button></div>' +
+      '</form>');
+  }).catch(function(){
+    if($("editModLoading") && modalWrap.classList.contains("open")){
+      closeModal(); toast(T("net_err"), true);
+    }
+  });
 }
 function openBroadcast(){
   openModal('<div class="m-head"><h3>' + T("bc_t") + '</h3>' +
@@ -1522,23 +1566,61 @@ function submitModForm(form, allowDuplicate){
     if(btn){ btn.disabled = false; btn.textContent = T("upload").replace("📤 ",""); }
   });
 }
-function submitEditForm(form){
+function showEditWarning(duplicates){
+  var warning = $("editWarning");
+  warning.innerHTML = '<h3>' + T(duplicates ? "duplicate_t" : "ask_t") + '</h3>' +
+    '<p>' + T(duplicates ? "edit_duplicate" : "edit_replace") + '</p>' +
+    (duplicates ? '<ul>' + duplicates.map(function(d){
+      return '<li>' + esc(d.uploaded_name) + ' — ' + esc(d.name) + '</li>';
+    }).join("") + '</ul>' : '') +
+    '<div class="form-actions"><button class="btn ghost" type="button" data-action="edit-back">' + T("edit_back") + '</button>' +
+    '<button class="btn danger" type="button" data-action="edit-confirm" data-duplicate="' + (duplicates ? "1" : "0") + '">' + T("edit_confirm") + '</button></div>';
+  warning.classList.remove("hide");
+  warning.scrollIntoView({block:"nearest"});
+}
+function submitEditForm(form, confirmed, allowDuplicate){
+  if(!form || form.dataset.submitting === "1" || !form.reportValidity()) return;
+  var photos = Array.from(form.elements.photos.files);
+  var files = Array.from(form.elements.files.files);
+  if(photos.length > 5 || files.length > 10){ toast(T("edit_limits"), true); return; }
+  if(photos.some(function(f){ return !/^image\/(jpeg|png|webp|gif)$/.test(f.type); })){
+    toast(T("edit_photo_bad"), true); return;
+  }
+  if(photos.some(function(f){ return f.size > 12 * 1024 * 1024; })){
+    toast(T("edit_photo_big"), true); return;
+  }
+  if(files.some(function(f){ return !f.size || f.size > 50 * 1024 * 1024; })){
+    toast(T("edit_file_bad"), true); return;
+  }
+  if((photos.length || files.length) && !confirmed){ showEditWarning(); return; }
   var id = form.dataset.id;
   var fd = new FormData(form);
-  api("/api/admin/mod_edit", {
-    mod_id:id,
-    name:fd.get("name"),
-    description:fd.get("description"),
-    category:fd.get("category")
-  }).then(function(r){
-    if(!r.ok){ toast(r.error || T("err_generic"), true); return; }
+  fd.set("mod_id", id);
+  if(confirmed) fd.set("confirm_replace", "1");
+  if(allowDuplicate) fd.set("allow_duplicate", "1");
+  var btn = $("editModBtn");
+  $("editWarning").classList.add("hide");
+  form.dataset.submitting = "1";
+  Array.from(form.elements).forEach(function(el){ el.disabled = true; });
+  btn.textContent = T("uploading");
+  return apiForm("/api/admin/mod_edit", fd).then(function(r){
+    if(!r.ok){
+      if($("editModForm") === form && r.duplicates) showEditWarning(r.duplicates);
+      else if($("editModForm") === form && r.confirm_replace) showEditWarning();
+      else toast(r.error || T("err_generic"), true);
+      return;
+    }
     var m = state.mods.filter(function(x){ return x.id === id; })[0];
     if(m) Object.assign(m, r.mod);
-    closeModal();
+    if($("editModForm") === form) closeModal();
     haptic("ok");
     toast(T("saved_ok"));
     renderMods();
     renderAdmin();
+  }).catch(function(){ toast(T("net_err"), true); }).finally(function(){
+    form.dataset.submitting = "0";
+    Array.from(form.elements).forEach(function(el){ el.disabled = false; });
+    btn.textContent = T("save_btn");
   });
 }
 
@@ -1549,6 +1631,9 @@ function handleAction(a, el){
     case "reset-filters":
       state.edition = ""; state.q = ""; state.cat = "all";
       renderMods(); break;
+    case "select-edit-link": el.select(); break;
+    case "edit-confirm": submitEditForm($("editModForm"), true, el.dataset.duplicate === "1"); break;
+    case "edit-back": $("editWarning").classList.add("hide"); break;
     case "duplicate-confirm": submitModForm($("addModForm"), true); break;
     case "duplicate-other":
       $("addModForm").elements.files.value = "";
@@ -1823,6 +1908,18 @@ document.addEventListener("change", function(e){
   }
   if(e.target.form && e.target.form.id === "addModForm" && e.target.name === "files"){
     $("duplicateWarning").classList.add("hide");
+  }
+  if(e.target.form && e.target.form.id === "editModForm"){
+    $("editWarning").classList.add("hide");
+    if(e.target.id === "editModPhotos"){
+      clearEditPhotoPreview();
+      $("editPhotoPreview").innerHTML = Array.from(e.target.files).slice(0, 5).map(function(f){
+        if(!/^image\/(jpeg|png|webp|gif)$/.test(f.type) || !f.size || f.size > 12 * 1024 * 1024) return "";
+        var url = URL.createObjectURL(f);
+        editPhotoUrls.push(url);
+        return '<img src="' + esc(url) + '" alt="">';
+      }).join("");
+    }
   }
   if(e.target.id === "chatPhotoInput"){
     clearChatPhoto(true);

@@ -557,7 +557,7 @@ def file_sha256(record):
         return ""
 
 
-def find_duplicate_file(candidate, pending_files=()):
+def find_duplicate_file(candidate, pending_files=(), exclude_mod_id=None):
     sha256 = file_sha256(candidate)
 
     def matches(record):
@@ -572,6 +572,8 @@ def find_duplicate_file(candidate, pending_files=()):
         if matches(record):
             return {"mod_id": "", "name": "Joriy yuklash", "file_name": record.get("file_name") or ""}
     for mod_id, mod in data.get("mods", {}).items():
+        if mod_id == exclude_mod_id:
+            continue
         for record in mod.get("files") or []:
             if matches(record):
                 return {"mod_id": mod_id, "name": mod.get("name") or "Joriy yuklash",
