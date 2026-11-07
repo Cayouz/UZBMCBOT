@@ -154,11 +154,32 @@ def panel_text():
     return info
 
 
+def refresh_user_statuses():
+    users = storage.data.get("users", {})
+    blocked = storage.data.get("blocked", {})
+    targets = [uid for uid in users if uid not in blocked]
+
+    def worker(uid):
+        res = tg.get_chat(int(uid), timeout=10)
+        if res.get("ok"):
+            storage.mark_user_status(uid, "active")
+        elif res.get("error_code") == 400 and "user not found" in str(res.get("description", "")).lower():
+            storage.mark_user_status(uid, "deleted")
+
+    if targets:
+        with ThreadPoolExecutor(max_workers=10) as ex:
+            list(ex.map(worker, targets))
+
+
 def stats_text():
     d = storage.data
     total_dl = sum(m.get("downloads", 0) for m in d.get("mods", {}).values())
     groups = storage.live_groups()
+    counts = storage.user_counts()
     t = "📊 <b>BOT STATISTIKASI</b>\n\n"
+    t += "⬛ Foydalanuvchilar: <b>%d</b>\n" % counts["total"]
+    t += "⬜ Faol: <b>%d</b>\n" % counts["active"]
+    t += "⬜ O'chirilgan: <b>%d</b>\n\n" % counts["deleted"]
     t += "👥 Jonli foydalanuvchilar: <b>%d ta</b>\n" % storage.live_users_count()
     t += "🌐 Hozir saytda: <b>%d</b>\n" % storage.web_live_count()
     t += "💬 Jonli guruhlar: <b>%d ta</b>\n" % len(groups)
@@ -182,6 +203,7 @@ def show_admin_panel(chat_id, message_id=None):
 
 
 def show_stats(chat_id, message_id=None):
+    refresh_user_statuses()
     rows = [[tg.button("🔄 Yangilash", callback_data="panel_stats")],
             [tg.button("🔙 Panelga qaytish", callback_data="panel_back")]]
     if message_id is not None:
@@ -501,6 +523,10 @@ def broadcast_text(text, limit_users=None):
             res = tg.send_message(int(uid), body)
         except Exception:
             res = {"ok": False}
+        if res.get("ok"):
+            storage.mark_user_status(uid, "active")
+        elif res.get("error_code") == 403:
+            storage.mark_user_status(uid, "deleted")
         with counter_lock:
             if res.get("ok"):
                 ok += 1

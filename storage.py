@@ -404,6 +404,24 @@ def live_users_count(days=None):
     return cnt
 
 
+def user_counts():
+    users = data.get("users", {})
+    blocked = data.get("blocked", {})
+    deleted = sum(1 for uid, u in users.items()
+                  if uid not in blocked and u.get("tg_status") == "deleted")
+    active = sum(1 for uid, u in users.items()
+                 if uid not in blocked and u.get("tg_status") != "deleted")
+    return {"total": len(users), "active": active, "deleted": deleted}
+
+
+def mark_user_status(user_id, status):
+    user = data.get("users", {}).get(str(user_id))
+    if user is None or user.get("tg_status") == status:
+        return
+    user["tg_status"] = status
+    save_data()
+
+
 def live_groups():
     return {gid: g for gid, g in data.get("groups", {}).items()
             if g.get("status", "active") == "active" and g.get("is_admin")}

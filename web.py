@@ -166,8 +166,11 @@ def admin_stats():
                for uid, b in d.get("blocked", {}).items()]
     groups = [{"id": gid, "title": g.get("title", ""), "date": g.get("date", "")}
               for gid, g in storage.live_groups().items()]
+    counts = storage.user_counts()
     return {
-        "users_total": len(users),
+        "users_total": counts["total"],
+        "users_active": counts["active"],
+        "users_deleted": counts["deleted"],
         "users_live": storage.live_users_count(),
         "users_today": sum(1 for u in users.values() if str(u.get("date", "")).startswith(today)),
         "live_days": live_days,
