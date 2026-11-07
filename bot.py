@@ -472,6 +472,10 @@ def process_start_payload(chat_id, user_id, user_name, param):
             inv = None
         storage.track_user(user_id, user_name, inviter_id=inv)
         return False
+    mid = storage.find_mod_by_link(param)
+    if mid:
+        send_mod_detail(chat_id, user_id, mid)
+        return True
     if param.startswith("mod_"):
         send_mod_detail(chat_id, user_id, param)
         return True
@@ -1114,7 +1118,7 @@ def handle_callback(cq):
             tg.answer_callback(cb_id, "Mod topilmadi.", alert=True)
             return
         if not is_private:
-            link = "https://t.me/%s?start=%s" % (config.BOT_USERNAME, mod_id)
+            link = storage.mod_link(mod_id, mod)
             tg.answer_callback(cb_id, "Shaxsiy chatda oching!", alert=True)
             tg.send_message(chat_id, "⬇️ Yuklab olish uchun botga shaxsiy chatda yozing: %s" % link)
             return

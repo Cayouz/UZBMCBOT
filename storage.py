@@ -548,6 +548,24 @@ def mod_visible(mod, user_id=None):
     return not mod.get("hidden") or (user_id is not None and is_admin(user_id))
 
 
+def mod_link_id(mid, mod):
+    return mod.get("link_id") or mid
+
+
+def mod_link(mid, mod):
+    return "https://t.me/%s?start=%s" % (config.BOT_USERNAME, mod_link_id(mid, mod))
+
+
+def find_mod_by_link(param):
+    mods = data.get("mods", {})
+    if param in mods:
+        return param
+    for mid, m in mods.items():
+        if m.get("link_id") == param:
+            return mid
+    return None
+
+
 def mod_editions(mod):
     editions = set()
     for text in (mod.get("description") or "", mod.get("name") or ""):

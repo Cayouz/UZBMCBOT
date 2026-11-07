@@ -140,6 +140,7 @@ def mod_json(mid, m, favs, lang="uz"):
             for i, f in enumerate(files)
         ],
         "saved": mid in favs,
+        "link": storage.mod_link(mid, m),
         "hidden": bool(m.get("hidden")),
         "channel_tracked": bool(m.get("channel_posts")),
         "channel_sync_error": bool(m.get("channel_sync_error")),
@@ -220,7 +221,7 @@ _channel_lock = threading.RLock()
 
 
 def _channel_content(mid, mod):
-    link = "https://t.me/%s?start=%s" % (config.BOT_USERNAME, mid)
+    link = storage.mod_link(mid, mod)
     name = str(mod.get("name") or "")[:120]
     footer = "\n\n📱 Kanal: @%s" % config.CHANNEL_USERNAME
     description = str(mod.get("description") or "")[:max(0, 1024 - len(name) - len(footer) - 4)]
@@ -984,7 +985,7 @@ class WebHandler(BaseHTTPRequestHandler):
             result = mod_json(mid, mod, set())
             result["name"] = mod.get("name") or ""
             result["description"] = mod.get("description") or ""
-            result["link"] = "https://t.me/%s?start=%s" % (config.BOT_USERNAME, mid)
+            result["link"] = storage.mod_link(mid, mod)
             return self._json({"ok": True, "mod": result})
 
         if action == "mod_edit":
@@ -1150,6 +1151,20 @@ class WebHandler(BaseHTTPRequestHandler):
             if cat not in config.MOD_CATEGORY_IDS:
                 return self._json({"ok": False, "error": "Kategoriyani tanlang"}, 400)
             updates["category"] = cat
+        if "link" in payload:
+            parts = urllib.parse.urlsplit(str(payload.get("link") or "").strip())
+            link_id = (urllib.parse.parse_qs(parts.query).get("start") or [""])[0]
+            if (parts.scheme != "https" or parts.netloc.lower() != "t.me"
+                    or parts.path.strip("/") != config.BOT_USERNAME
+                    or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", link_id)):
+                return self._json({"ok": False, "error": "Havola https://t.me/%s?start=... ko'rinishida bo'lsin" % config.BOT_USERNAME}, 400)
+            if link_id == mid:
+                updates["link_id"] = ""
+            else:
+                mods = storage.data.get("mods", {})
+                if link_id in mods or any(m.get("link_id") == link_id for m_id, m in mods.items() if m_id != mid):
+                    return self._json({"ok": False, "error": "Bu havola boshqa modga tegishli"}, 400)
+                updates["link_id"] = link_id
         photos_in = [f for f in files if f["field"] == "photos" and f["filename"]]
         files_in = [f for f in files if f["field"] == "files" and f["filename"]]
         if len(photos_in) > config.MAX_UPLOAD_PHOTOS or len(files_in) > config.MAX_MOD_FILES:
