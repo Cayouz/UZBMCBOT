@@ -154,21 +154,38 @@ def panel_text():
     return info
 
 
+_status_refresh_running = False
+
+
 def refresh_user_statuses():
-    users = storage.data.get("users", {})
-    blocked = storage.data.get("blocked", {})
-    targets = [uid for uid in users if uid not in blocked]
+    global _status_refresh_running
+    if _status_refresh_running:
+        return
+    _status_refresh_running = True
+    try:
+        users = storage.data.get("users", {})
+        blocked = storage.data.get("blocked", {})
+        now = time.time()
+        targets = [uid for uid, u in users.items()
+                   if uid not in blocked and now - u.get("status_checked_at", 0) > 6 * 3600]
 
-    def worker(uid):
-        res = tg.get_chat(int(uid), timeout=10)
-        if res.get("ok"):
-            storage.mark_user_status(uid, "active")
-        elif res.get("error_code") == 400 and "user not found" in str(res.get("description", "")).lower():
-            storage.mark_user_status(uid, "deleted")
+        def worker(uid):
+            res = tg.get_chat(int(uid), timeout=10)
+            if res.get("ok"):
+                storage.mark_user_status(uid, "active", save=False)
+            elif res.get("error_code") == 400 and "user not found" in str(res.get("description", "")).lower():
+                storage.mark_user_status(uid, "deleted", save=False)
+            user = users.get(uid)
+            if user is not None:
+                user["status_checked_at"] = time.time()
+            time.sleep(0.1)
 
-    if targets:
-        with ThreadPoolExecutor(max_workers=10) as ex:
-            list(ex.map(worker, targets))
+        if targets:
+            with ThreadPoolExecutor(max_workers=5) as ex:
+                list(ex.map(worker, targets))
+            storage.save_data()
+    finally:
+        _status_refresh_running = False
 
 
 def stats_text():
@@ -203,13 +220,24 @@ def show_admin_panel(chat_id, message_id=None):
 
 
 def show_stats(chat_id, message_id=None):
-    refresh_user_statuses()
     rows = [[tg.button("🔄 Yangilash", callback_data="panel_stats")],
             [tg.button("🔙 Panelga qaytish", callback_data="panel_back")]]
     if message_id is not None:
         tg.edit_message(chat_id, message_id, stats_text(), tg.inline_kb(rows))
     else:
-        tg.send_message(chat_id, stats_text(), tg.inline_kb(rows))
+        res = tg.send_message(chat_id, stats_text(), tg.inline_kb(rows))
+        if res.get("ok"):
+            message_id = res["result"]["message_id"]
+
+    def refresh():
+        refresh_user_statuses()
+        try:
+            if message_id is not None:
+                tg.edit_message(chat_id, message_id, stats_text(), tg.inline_kb(rows))
+        except Exception:
+            pass
+
+    threading.Thread(target=refresh, daemon=True).start()
 
 
 def show_channels(chat_id, message_id=None):
@@ -564,9 +592,10 @@ def broadcast_text(text, limit_users=None):
                 ok += 1
             else:
                 fail += 1
+        time.sleep(0.1)
 
     if total:
-        with ThreadPoolExecutor(max_workers=20) as ex:
+        with ThreadPoolExecutor(max_workers=10) as ex:
             list(ex.map(worker, targets))
     return total, ok, fail
 
@@ -771,17 +800,21 @@ def handle_message(message):
         storage.clear_state(user_id)
         users_count = len([u for u in storage.data.get("users", {}) if u not in storage.data.get("blocked", {})])
         note = tg.send_message(chat_id, "⏳ <b>%d kishiga xabar yuborilmoqda...</b>" % users_count)
-        total, ok, fail = broadcast_text(text)
-        result = ("✅ <b>Xabar tarqatish yakunlandi!</b>\n\n"
-                  "👥 Jami: <b>%d ta</b>\n🟢 Yetib bordi: <b>%d ta</b>\n🔴 Yetib bormadi: <b>%d ta</b>"
-                  % (total, ok, fail))
-        try:
-            if note.get("ok"):
-                tg.edit_message(chat_id, note["result"]["message_id"], result, main_keyboard(True))
-            else:
+
+        def do_broadcast():
+            total, ok, fail = broadcast_text(text)
+            result = ("✅ <b>Xabar tarqatish yakunlandi!</b>\n\n"
+                      "👥 Jami: <b>%d ta</b>\n🟢 Yetib bordi: <b>%d ta</b>\n🔴 Yetib bormadi: <b>%d ta</b>"
+                      % (total, ok, fail))
+            try:
+                if note.get("ok"):
+                    tg.edit_message(chat_id, note["result"]["message_id"], result, main_keyboard(True))
+                else:
+                    tg.send_message(chat_id, result, main_keyboard(True))
+            except Exception:
                 tg.send_message(chat_id, result, main_keyboard(True))
-        except Exception:
-            tg.send_message(chat_id, result, main_keyboard(True))
+
+        threading.Thread(target=do_broadcast, daemon=True).start()
         return
 
     if cur == "upload_title":

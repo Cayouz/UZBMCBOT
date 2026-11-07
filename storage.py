@@ -419,12 +419,13 @@ def user_counts():
     return {"total": len(users), "active": active, "deleted": deleted}
 
 
-def mark_user_status(user_id, status):
+def mark_user_status(user_id, status, save=True):
     user = data.get("users", {}).get(str(user_id))
     if user is None or user.get("tg_status") == status:
         return
     user["tg_status"] = status
-    save_data()
+    if save:
+        save_data()
 
 
 def live_groups():
