@@ -469,6 +469,38 @@ def download_photo(file_id, user_id, idx):
     return ""
 
 
+def add_link_file(chat_id, user_id, sd, url):
+    if len(sd.get("files", [])) >= config.MAX_MOD_FILES:
+        tg.send_message(chat_id, "⚠️ Maksimum %d ta fayl." % config.MAX_MOD_FILES)
+        return
+    if sd.get("pending_duplicate"):
+        tg.send_message(chat_id, "Avval takroriy fayl uchun qaror qiling yoki yuklashni yakunlang.")
+        return
+    token = uuid.uuid4().hex
+    fp = os.path.join(config.MODS_DIR, "upload_%s_link" % token)
+    ok, result = storage.download_link_file(url, fp)
+    if not ok:
+        tg.send_message(chat_id, "❌ %s" % result, files_keyboard())
+        return
+    candidate = {"file_id": "", "file_unique_id": "", "file_name": result, "file_path": fp}
+    if not storage.file_sha256(candidate):
+        tg.send_message(chat_id, "❌ Fayl yuklab olinmadi. Qayta yuboring.", files_keyboard())
+        return
+    duplicate = storage.find_duplicate_file(candidate, sd.get("files") or [])
+    if duplicate:
+        sd["pending_duplicate"] = {"token": token, "file": candidate}
+        storage.set_state(user_id, "upload_files", sd)
+        kb = tg.inline_kb([[tg.button("Baribir qo‘shish", callback_data="dup_add_" + token),
+                            tg.button("Qo‘shmaslik", callback_data="dup_skip_" + token)]])
+        tg.send_message(chat_id, "Bu fayl allaqachon mavjud: <b>%s</b> (<code>%s</code>).\n"
+                        "Baribir qo‘shilsinmi?" % (escape(duplicate["name"]), escape(duplicate["file_name"])), kb)
+        return
+    sd.setdefault("files", []).append(candidate)
+    storage.set_state(user_id, "upload_files", sd)
+    tg.send_message(chat_id, "✅ Fayl qo'shildi (%d ta): <b>%s</b>\n\nYana yuboring yoki <b>%s</b> ni bosing."
+                    % (len(sd["files"]), escape(result), config.B_FILES_DONE), files_keyboard())
+
+
 def finish_upload(chat_id, user_id, sd):
     storage.clear_state(user_id)
     mod_id = "mod_%d" % int(time.time())
@@ -755,7 +787,7 @@ def handle_message(message):
     if cur == "upload_title":
         sd["name"] = text.strip()
         storage.set_state(user_id, "upload_category", sd)
-        tg.send_message(chat_id, "✅ Nomi qabul qilindi: <b>%s</b>\n\n<b>2-qadam: Kategoriyani tanlang:</b>"
+        tg.send_message(chat_id, "✅ Nomi qabul qilindi: <b>%s</b>\n\n<b>3-qadam: Kategoriyani tanlang:</b>"
                         % escape(sd["name"]), upload_category_kb())
         return
 
@@ -764,16 +796,33 @@ def handle_message(message):
         sd["description"] = desc
         storage.set_state(user_id, "upload_files", sd)
         tg.send_message(chat_id,
-                        "<b>3-qadam: Yuklanadigan fayllarni yuboring</b> (.zip, .mcpack, .mcaddon va h.k.).\n"
-                        "Bir nechta fayl yuborishingiz mumkin. Tayyor bo'lgach <b>%s</b> ni bosing."
+                        "<b>5-qadam: Yuklanadigan fayllarni yuboring</b> (.zip, .mcpack, .mcaddon va h.k.).\n"
+                        "Bir nechta fayl yuborishingiz mumkin. Yoki to'g'ridan-to'g'ri fayl havolasini (https://...) yuboring.\n"
+                        "Tayyor bo'lgach <b>%s</b> ni bosing."
                         % config.B_FILES_DONE, files_keyboard())
         return
 
-    if cur == "upload_files" and text in (config.B_FILES_DONE, config.B_FILE_ADD):
+    if cur == "upload_photos" and text == config.B_PHOTOS_DONE:
+        if not sd.get("photos"):
+            tg.send_message(chat_id, "⚠️ Hali rasm yubormadingiz! Kamida 1 ta rasm yuboring.")
+            return
+        storage.set_state(user_id, "upload_title", sd)
+        tg.send_message(chat_id, "<b>2-qadam: Mod nomini yozing:</b>", cancel_keyboard())
+        return
+
+    if cur == "upload_files" and text == config.B_FILE_ADD:
+        tg.send_message(chat_id, "📎 Faylni yuboring yoki to'g'ridan-to'g'ri fayl havolasini (https://...) yozing.", files_keyboard())
+        return
+
+    if cur == "upload_files" and text == config.B_FILES_DONE:
         if not sd.get("files"):
             tg.send_message(chat_id, "⚠️ Hali fayl yubormadingiz! Kamida 1 ta fayl yuboring.")
             return
         finish_upload(chat_id, user_id, sd)
+        return
+
+    if cur == "upload_files" and text.startswith("https://"):
+        add_link_file(chat_id, user_id, sd, text.strip())
         return
 
     if cur == "mod_edit_name":
@@ -1136,7 +1185,7 @@ def handle_callback(cq):
         sd["category"] = cat_id
         storage.set_state(user_id, "upload_desc", sd)
         tg.answer_callback(cb_id)
-        tg.send_message(chat_id, "<b>3-qadam: Tavsif yozing (yoki /skip).</b>", cancel_keyboard())
+        tg.send_message(chat_id, "<b>4-qadam: Tavsif yozing (yoki /skip).</b>", cancel_keyboard())
         return
 
     # ---- PANEL ----

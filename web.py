@@ -1232,6 +1232,7 @@ class WebHandler(BaseHTTPRequestHandler):
             :config.MAX_UPLOAD_PHOTOS]
         files_in = [f for f in files if f["field"] == "files" and f["content"]][
             :config.MAX_MOD_FILES]
+        file_link = str(payload.get("file_link") or "").strip()
         for p in photos_in:
             if len(p["content"]) > MAX_PHOTO_BYTES:
                 return self._json({"ok": False, "error": "Har bir rasm 12MB dan kichik bo'lsin"}, 400)
@@ -1240,8 +1241,24 @@ class WebHandler(BaseHTTPRequestHandler):
                 return self._json({"ok": False, "error": "Har bir fayl 50MB dan kichik bo'lsin"}, 400)
         if not photos_in:
             return self._json({"ok": False, "error": "Kamida 1 ta rasm yuklang"}, 400)
-        if not files_in:
-            return self._json({"ok": False, "error": "Kamida 1 ta mod fayli yuklang"}, 400)
+        if not files_in and not file_link:
+            return self._json({"ok": False, "error": "Kamida 1 ta mod fayli yuklang yoki havola kiriting"}, 400)
+        if file_link and not files_in:
+            token = os.urandom(16).hex()
+            link_path = os.path.join(config.MODS_DIR, "upload_%s_link" % token)
+            ok, result = storage.download_link_file(file_link, link_path)
+            if not ok:
+                return self._json({"ok": False, "error": result}, 400)
+            try:
+                with open(link_path, "rb") as f:
+                    content = f.read()
+            finally:
+                try:
+                    os.remove(link_path)
+                except OSError:
+                    pass
+            files_in.append({"field": "files", "filename": result, "content": content,
+                             "ctype": "application/octet-stream"})
 
         candidates = []
         duplicates = []

@@ -1,10 +1,15 @@
 import hashlib
+import http.client
+import ipaddress
 import json
 import os
 import re
+import socket
+import ssl
 import threading
 import time
 import datetime
+import urllib.parse
 import uuid
 
 import config
@@ -618,3 +623,90 @@ def mod_photos(m):
 
 def safe_filename(name):
     return re.sub(r"[^A-Za-z0-9._-]", "_", name or "file")
+
+
+LINK_FILE_EXTS = (".zip", ".mcpack", ".mcaddon", ".mcworld", ".jar", ".rar", ".7z")
+LINK_MAX_BYTES = 50 * 1024 * 1024
+
+
+def _public_ip(ip):
+    addr = ipaddress.ip_address(ip)
+    return not (addr.is_private or addr.is_loopback or addr.is_link_local
+                or addr.is_reserved or addr.is_multicast or addr.is_unspecified)
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    pinned_ip = None
+    tls_hostname = None
+
+    def connect(self):
+        sock = socket.create_connection((self.pinned_ip, self.port), self.timeout)
+        if self._tunnel_host:
+            self.sock = sock
+            self._tunnel()
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.tls_hostname)
+
+
+def download_link_file(url, dest_path, max_bytes=LINK_MAX_BYTES):
+    """Havoladagi mod faylini xavfsiz yuklab olish. (True, nom) yoki (False, xato)."""
+    try:
+        parts = urllib.parse.urlsplit(str(url).strip())
+    except ValueError:
+        return False, "Havola noto'g'ri"
+    if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+        return False, "Faqat https fayl havolasi qabul qilinadi"
+    try:
+        infos = socket.getaddrinfo(parts.hostname, parts.port or 443, proto=socket.IPPROTO_TCP)
+    except OSError:
+        return False, "Havola manzili topilmadi"
+    ips = {info[4][0] for info in infos}
+    if not ips or not all(_public_ip(ip) for ip in ips):
+        return False, "Bu havolaga ruxsat yo'q"
+    path = urllib.parse.urlunsplit(("", "", parts.path or "/", parts.query, ""))
+    conn = _PinnedHTTPSConnection(parts.hostname, parts.port or 443, timeout=30,
+                                  context=ssl.create_default_context())
+    conn.pinned_ip = sorted(ips)[0]
+    conn.tls_hostname = parts.hostname
+    ok = False
+    try:
+        conn.request("GET", path, headers={
+            "Host": parts.netloc, "User-Agent": "UZBMCBOT/1.0", "Accept": "*/*"})
+        resp = conn.getresponse()
+        if resp.status != 200:
+            return False, "Havola fayl qaytarmadi (HTTP %d)" % resp.status
+        ctype = (resp.getheader("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype.startswith("text/") or ctype in ("application/json", "application/xhtml+xml"):
+            return False, "Havola to'g'ridan-to'g'ri fayl emas"
+        name = ""
+        disposition = resp.getheader("Content-Disposition") or ""
+        match = re.search(r"filename\*?=(?:UTF-8''|\")?([^\";]+)", disposition, re.IGNORECASE)
+        if match:
+            name = urllib.parse.unquote(match.group(1).strip().strip('"'))
+        if not name:
+            name = urllib.parse.unquote(os.path.basename(parts.path))
+        name = safe_filename(name)[:120]
+        if os.path.splitext(name)[1].lower() not in LINK_FILE_EXTS:
+            return False, "Fayl turi mos emas (.mcaddon, .mcpack, .zip, .jar ...)"
+        total = 0
+        with open(dest_path, "wb") as out:
+            while True:
+                chunk = resp.read(1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    return False, "Fayl 50MB dan katta"
+                out.write(chunk)
+        if not total:
+            return False, "Havola bo'sh fayl qaytardi"
+        ok = True
+        return True, name
+    except Exception:
+        return False, "Fayl yuklab olinmadi"
+    finally:
+        conn.close()
+        if not ok and os.path.exists(dest_path):
+            try:
+                os.remove(dest_path)
+            except OSError:
+                pass

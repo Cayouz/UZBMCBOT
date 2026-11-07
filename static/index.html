@@ -508,6 +508,7 @@ add_mod_t:"➕ Yangi mod", f_name:"Mod nomi", name_ph:"Masalan: Super Cars Addon
 f_desc:"Tavsif", desc_ph:"Mod haqida qisqacha...",
 f_cat:"Kategoriya", f_photos:"Rasmlar (1–5 ta)", ph_hint:"Birinchi rasm asosiy muqova bo'ladi.",
 f_files:"Fayllar (.mcaddon, .mcpack, .zip ...)", pub_chk:"Telegram kanalga ham joylash",
+f_link:"Yoki fayl havolasi", link_hint:"To'g'ridan-to'g'ri fayl havolasi (https, 50MB gacha). Fayl tanlasangiz, havola e'tiborsiz qoldiriladi.",
 upload:"📤 Yuklash", uploading:"Yuklanmoqda...",
 edit_t:"✏️ Tahrirlash", f_name2:"Nomi", f_desc2:"Tavsif", f_cat2:"Kategoriya", cancel2:"Bekor", save_btn:"💾 Saqlash", saved_ok:"✅ Saqlandi",
 hide_mod:"Yashirish", show_mod:"Ko'rsatish", hidden_mod:"Yashirilgan", mod_hidden_ok:"Mod foydalanuvchilardan yashirildi", mod_shown_ok:"Mod yana ko'rinadi", saved_channel:"Mod va kanal posti yangilandi", channel_sync_fail:"Mod saqlandi, lekin kanal yangilanmadi. Qayta saqlab urinib ko'ring.", channel_sync_hint:"Saqlaganda bot joylagan kanal posti ham yangilanadi.", channel_untracked_hint:"Bu modning oldingi kanal posti IDsi yo'q; u avtomatik yangilanmaydi.",
@@ -579,6 +580,7 @@ add_mod_t:"➕ New mod", f_name:"Mod name", name_ph:"Example: Super Cars Addon",
 f_desc:"Description", desc_ph:"Short info about the mod...",
 f_cat:"Category", f_photos:"Photos (1–5)", ph_hint:"The first photo will be the cover.",
 f_files:"Files (.mcaddon, .mcpack, .zip ...)", pub_chk:"Also publish to Telegram channel",
+f_link:"Or file link", link_hint:"Direct file link (https, up to 50MB). If you select files, the link is ignored.",
 upload:"📤 Upload", uploading:"Uploading...",
 edit_t:"✏️ Edit", f_name2:"Name", f_desc2:"Description", f_cat2:"Category", cancel2:"Cancel", save_btn:"💾 Save", saved_ok:"✅ Saved",
 hide_mod:"Hide", show_mod:"Show", hidden_mod:"Hidden", mod_hidden_ok:"Mod hidden from users", mod_shown_ok:"Mod is visible again", saved_channel:"Mod and channel post updated", channel_sync_fail:"Mod saved, but the channel was not updated. Save again to retry.", channel_sync_hint:"Saving also updates the channel post published by the bot.", channel_untracked_hint:"The old channel post ID is unavailable; it will not be updated automatically.",
@@ -650,6 +652,7 @@ add_mod_t:"➕ Новый мод", f_name:"Название мода", name_ph:"
 f_desc:"Описание", desc_ph:"Кратко о моде...",
 f_cat:"Категория", f_photos:"Фото (1–5)", ph_hint:"Первое фото станет обложкой.",
 f_files:"Файлы (.mcaddon, .mcpack, .zip ...)", pub_chk:"Также опубликовать в канал Telegram",
+f_link:"Или ссылка на файл", link_hint:"Прямая ссылка на файл (https, до 50МБ). Если выбраны файлы, ссылка игнорируется.",
 upload:"📤 Загрузить", uploading:"Загрузка...",
 edit_t:"✏️ Редактировать", f_name2:"Название", f_desc2:"Описание", f_cat2:"Категория", cancel2:"Отмена", save_btn:"💾 Сохранить", saved_ok:"✅ Сохранено",
 hide_mod:"Скрыть", show_mod:"Показать", hidden_mod:"Скрыт", mod_hidden_ok:"Мод скрыт от пользователей", mod_shown_ok:"Мод снова виден", saved_channel:"Мод и пост в канале обновлены", channel_sync_fail:"Мод сохранён, но канал не обновлён. Сохраните снова для повтора.", channel_sync_hint:"При сохранении обновится и пост в канале, опубликованный ботом.", channel_untracked_hint:"ID старого поста неизвестен; он не обновится автоматически.",
@@ -1315,6 +1318,9 @@ function openAddMod(){
         '<div class="hint">' + T("ph_hint") + '</div></div>' +
       '<div class="field"><label>' + T("f_files") + '</label>' +
         '<input class="file-in" type="file" name="files" multiple></div>' +
+      '<div class="field"><label>' + T("f_link") + '</label>' +
+        '<input name="file_link" type="url" placeholder="https://... fayl.mcaddon">' +
+        '<div class="hint">' + T("link_hint") + '</div></div>' +
       '<label class="checkline"><input type="checkbox" name="publish" value="1"> ' + T("pub_chk") + '</label>' +
       '<div class="card hide" id="duplicateWarning" role="alert"></div>' +
       '<button class="btn primary block" type="submit" id="addModBtn">📤 ' + T("upload").replace("📤 ","") + '</button>' +
@@ -1544,6 +1550,7 @@ function submitModForm(form, allowDuplicate){
   if(warning) warning.classList.add("hide");
   if(btn){ btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ' + T("uploading"); }
   if(allowDuplicate) fd.set("allow_duplicate", "1");
+  if(form.elements.files.files.length) fd.delete("file_link");
   if(!form.publish.checked) fd.delete("publish"); else fd.set("publish", "1");
   apiForm("/api/admin/mod_add", fd).then(function(r){
     if(!r.ok){
