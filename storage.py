@@ -183,6 +183,9 @@ def migrate():
         if "avatar" not in u:
             u["avatar"] = ""
             changed = True
+        if "lang" not in u:
+            u["lang"] = "uz"
+            changed = True
         if "username" not in u:
             u["username"] = ""
             changed = True
@@ -246,6 +249,7 @@ def track_user(user_id, name, username=None, inviter_id=None):
             "favorites": [],
             "settings": {"theme": "dark", "sound": True, "bg": True},
             "avatar": "",
+            "lang": "uz",
         }
         if inviter_id is not None and str(inviter_id) != uid and str(inviter_id) in users:
             inv = users[str(inviter_id)]
@@ -347,6 +351,8 @@ def set_settings(user_id, settings):
     for k in ("theme", "sound", "bg", "lang", "font"):
         if k in settings and settings[k] is not None:
             cur[k] = settings[k]
+            if k == "lang":
+                user["lang"] = settings[k]
     save_data()
     return cur
 
@@ -412,10 +418,12 @@ def live_users_count(days=None):
 def user_counts():
     users = data.get("users", {})
     blocked = data.get("blocked", {})
+    now = time.time()
+    cutoff_30d = now - 30 * 86400
     deleted = sum(1 for uid, u in users.items()
                   if uid not in blocked and u.get("tg_status") == "deleted")
     active = sum(1 for uid, u in users.items()
-                 if uid not in blocked and u.get("tg_status") != "deleted")
+                 if uid not in blocked and parse_ts(u.get("last_seen", "")) >= cutoff_30d)
     return {"total": len(users), "active": active, "deleted": deleted}
 
 

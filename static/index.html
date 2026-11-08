@@ -169,6 +169,7 @@ html[data-theme="light"] .mod-card .ph{background:radial-gradient(circle at 30% 
 .mod-card .meta{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:7px;
   font-size:10.5px;color:var(--muted);font-weight:600}
 .mod-card .meta .cat{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mod-card .detail-btn{display:block;margin-top:8px;font-size:11px;color:var(--accent);font-weight:600;text-align:center}
 .badge-save{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;
   display:grid;place-items:center;font-size:13px;background:rgba(8,12,9,.62);backdrop-filter:blur(6px);
   border:1px solid rgba(255,255,255,.12)}
@@ -753,8 +754,12 @@ function navItems(){
 }
 function buildNav(){
   $("nav").innerHTML = navItems().map(function(k){
+    var icon = TABS[k].icon;
+    if(k === "profile" && state.user.avatar){
+      icon = '<img src="' + esc(state.user.avatar) + '" style="width:21px;height:21px;border-radius:50%;object-fit:cover" alt="">';
+    }
     return '<button data-action="tab" data-tab="' + k + '" class="' + (state.tab===k?"active":"") + '">' +
-      '<span class="ni">' + TABS[k].icon + '</span><span>' + T(TABS[k].label) + '</span></button>';
+      '<span class="ni">' + icon + '</span><span>' + T(TABS[k].label) + '</span></button>';
   }).join("");
 }
 function setTab(tab){
@@ -804,7 +809,7 @@ function boot(){
     state.stats = r.stats || null;
     state.invited_count = r.invited_count || 0;
     state.joined = r.joined || "";
-    var sl = String(state.settings.lang || "").toLowerCase();
+    var sl = String(r.lang || state.settings.lang || "").toLowerCase();
     if(sl !== "uz" && sl !== "en" && sl !== "ru"){
       var tl = String((state.user && state.user.tg_lang) || "").toLowerCase().split("-")[0];
       sl = (tl === "en" || tl === "ru") ? tl : "uz";
@@ -905,7 +910,8 @@ function modCard(m){
     (saved ? '<span class="badge-save">❤️</span>' : '') +
     '<span class="body"><span class="name">' + esc(m.name) + '</span>' +
     '<span class="meta"><span class="cat">' + esc(m.category_name) + '</span>' +
-    '<span>' + esc(m.date ? m.date.split(" ")[0] : "") + '</span></span></span></button>';
+    '<span>' + esc(m.date ? m.date.split(" ")[0] : "") + '</span></span>' +
+    '<span class="detail-btn">Batafsil →</span></span></button>';
 }
 function renderModGrid(){
   var list = sortedFiltered();

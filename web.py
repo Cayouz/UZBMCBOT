@@ -115,8 +115,8 @@ def cat_label(cat_id):
 
 
 def user_lang(uid):
-    s = (storage.get_user(uid) or {}).get("settings") or {}
-    return s.get("lang") or "uz"
+    u = storage.get_user(uid) or {}
+    return u.get("lang") or (u.get("settings") or {}).get("lang") or "uz"
 
 
 def mod_json(mid, m, favs, lang="uz"):
@@ -673,6 +673,7 @@ class WebHandler(BaseHTTPRequestHandler):
             "subscribed": subscribed(uid),
             "blocked": False,
             "settings": prof.get("settings", {"theme": "dark", "sound": True, "bg": True}),
+            "lang": user_lang(uid),
             "unread": storage.unread_messages(uid),
             "favorites": list(favs),
             "invited_count": prof.get("invited_count", 0),

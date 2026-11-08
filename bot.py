@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from html import escape
 
 import config
+import langs
 import storage
 import tg
 
@@ -62,7 +63,7 @@ def refresh_groups():
 # ============ KLAVIATURALAR ============
 def main_keyboard(admin=False):
     rows = [
-        [tg.button(config.B_MODS), tg.button(config.B_HELP)],
+        [tg.button(config.B_MODS)],
         [tg.button(config.B_REF), tg.button(config.B_GUIDE)],
     ]
     if config.WEBAPP_URL:
@@ -114,8 +115,7 @@ def upload_category_kb():
 
 def panel_keyboard():
     rows = [
-        [tg.button("➕ Admin qo'shish", callback_data="panel_admin_add"),
-         tg.button("➖ Admin olib tashlash", callback_data="panel_admin_del")],
+        [tg.button("➖ Admin olib tashlash", callback_data="panel_admin_del")],
         [tg.button("📤 Mod qo'shish", callback_data="panel_mod_add"),
          tg.button("🗑️ Mod olib tashlash", callback_data="panel_mod_del")],
         [tg.button("✏️ Mod Tahrirlash", callback_data="panel_mod_edit"),
@@ -194,10 +194,10 @@ def stats_text():
     groups = storage.live_groups()
     counts = storage.user_counts()
     t = "📊 <b>BOT STATISTIKASI</b>\n\n"
-    t += "⬛ Foydalanuvchilar: <b>%d</b>\n" % counts["total"]
-    t += "⬜ Faol: <b>%d</b>\n" % counts["active"]
-    t += "⬜ O'chirilgan: <b>%d</b>\n\n" % counts["deleted"]
-    t += "👥 Jonli foydalanuvchilar: <b>%d ta</b>\n" % storage.live_users_count()
+    t += "👥 Jami foydalanuvchilar: <b>%d</b>\n" % counts["total"]
+    t += "✅ Faol (oxirgi 30 kun): <b>%d</b>\n" % counts["active"]
+    t += "❌ O'chirilgan akkaunt: <b>%d</b>\n\n" % counts["deleted"]
+    t += "🔥 Jonli foydalanuvchilar: <b>%d ta</b>\n" % storage.live_users_count()
     t += "🌐 Hozir saytda: <b>%d</b>\n" % storage.web_live_count()
     t += "💬 Jonli guruhlar: <b>%d ta</b>\n" % len(groups)
     t += "📦 Modlar: <b>%d ta</b>\n" % len(d.get("mods", {}))
@@ -222,10 +222,11 @@ def show_admin_panel(chat_id, message_id=None):
 def show_stats(chat_id, message_id=None):
     rows = [[tg.button("🔄 Yangilash", callback_data="panel_stats")],
             [tg.button("🔙 Panelga qaytish", callback_data="panel_back")]]
+    loading_text = "📊 <b>BOT STATISTIKASI</b>\n\n⏳ Hisoblanmoqda..."
     if message_id is not None:
-        tg.edit_message(chat_id, message_id, stats_text(), tg.inline_kb(rows))
+        tg.edit_message(chat_id, message_id, loading_text, tg.inline_kb(rows))
     else:
-        res = tg.send_message(chat_id, stats_text(), tg.inline_kb(rows))
+        res = tg.send_message(chat_id, loading_text, tg.inline_kb(rows))
         if res.get("ok"):
             message_id = res["result"]["message_id"]
 
@@ -449,18 +450,49 @@ def send_ref(chat_id, user_id):
 
 
 def send_welcome(chat_id, user_id, user_name):
-    welcome = ("Salom, <b>%s</b> 👋!\n"
-               "🎉 <b>Minecraft Mod Botga xush kelibsiz!</b>\n\n"
-               "🤖 <b>Buyruqlar:</b>\n"
-               "/start - Qayta boshlash ♻️\n"
-               "/mods - Modlar bo'limi 📦\n"
-               "/guide - O'rnatish qo'llanmasi 📖\n"
-               "/ref - Do'stlarni taklif qilish 🎁\n"
-               "/help - Adminga yozish 📝\n" % escape(user_name))
-    if storage.is_admin(user_id):
-        welcome += ("/upload - Mod yuklash 📤\n/admin - Admin qo'shish 👤\n"
-                    "/broadcast - Xabar tarqatish 📢\n/panel - Admin panel 🛠️\n")
-    welcome += "\n🌐 Kanal: @%s" % config.CHANNEL_USERNAME
+    lang = langs.get_user_lang(user_id)
+    if lang == "ru":
+        welcome = ("Здравствуйте, <b>%s</b> 👋!\n"
+                   "🎉 <b>Добро пожаловать в бот Minecraft модов!</b>\n\n"
+                   "🤖 <b>Команды:</b>\n"
+                   "/start - Перезапустить ♻️\n"
+                   "/mods - Раздел модов 📦\n"
+                   "/guide - Инструкция по установке 📖\n"
+                   "/ref - Пригласить друга 🎁\n"
+                   "/help - Написать админу 📝\n"
+                   "/lang - Сменить язык 🌐\n" % escape(user_name))
+        if storage.is_admin(user_id):
+            welcome += ("/upload - Загрузить мод 📤\n/admin - Добавить админа 👤\n"
+                        "/broadcast - Рассылка 📢\n/panel - Панель админа 🛠️\n")
+        welcome += "\n🌐 Канал: @%s" % config.CHANNEL_USERNAME
+    elif lang == "en":
+        welcome = ("Hello, <b>%s</b> 👋!\n"
+                   "🎉 <b>Welcome to the Minecraft Mod Bot!</b>\n\n"
+                   "🤖 <b>Commands:</b>\n"
+                   "/start - Restart ♻️\n"
+                   "/mods - Mods section 📦\n"
+                   "/guide - Installation guide 📖\n"
+                   "/ref - Invite friends 🎁\n"
+                   "/help - Contact admin 📝\n"
+                   "/lang - Change language 🌐\n" % escape(user_name))
+        if storage.is_admin(user_id):
+            welcome += ("/upload - Upload mod 📤\n/admin - Add admin 👤\n"
+                        "/broadcast - Broadcast 📢\n/panel - Admin panel 🛠️\n")
+        welcome += "\n🌐 Channel: @%s" % config.CHANNEL_USERNAME
+    else:
+        welcome = ("Salom, <b>%s</b> 👋!\n"
+                   "🎉 <b>Minecraft Mod Botga xush kelibsiz!</b>\n\n"
+                   "🤖 <b>Buyruqlar:</b>\n"
+                   "/start - Qayta boshlash ♻️\n"
+                   "/mods - Modlar bo'limi 📦\n"
+                   "/guide - O'rnatish qo'llanmasi 📖\n"
+                   "/ref - Do'stlarni taklif qilish 🎁\n"
+                   "/help - Adminga yozish 📝\n"
+                   "/lang - Tilni o'zgartirish 🌐\n" % escape(user_name))
+        if storage.is_admin(user_id):
+            welcome += ("/upload - Mod yuklash 📤\n/admin - Admin qo'shish 👤\n"
+                        "/broadcast - Xabar tarqatish 📢\n/panel - Admin panel 🛠️\n")
+        welcome += "\n🌐 Kanal: @%s" % config.CHANNEL_USERNAME
     tg.send_message(chat_id, welcome, main_keyboard(storage.is_admin(user_id)))
 
 
@@ -641,7 +673,8 @@ def handle_message(message):
 
     if text == config.B_CANCEL:
         storage.clear_state(user_id)
-        tg.send_message(chat_id, "❌ Amaliyot bekor qilindi.", main_keyboard(storage.is_admin(user_id)))
+        lang = langs.get_user_lang(user_id)
+        tg.send_message(chat_id, langs.t("op_cancelled", lang), main_keyboard(storage.is_admin(user_id)))
         return
 
     # Admin javob tizimi
@@ -664,6 +697,11 @@ def handle_message(message):
             if process_start_payload(chat_id, user_id, user_name, parts[1]):
                 return
         send_welcome(chat_id, user_id, user_name)
+        return
+
+    if text in ("/lang", "/language", "/til"):
+        lang = langs.get_user_lang(user_id)
+        tg.send_message(chat_id, langs.t("lang_prompt", lang), langs.lang_keyboard())
         return
 
     if text in (config.B_REF, "/ref"):
@@ -766,8 +804,19 @@ def handle_message(message):
     if cur == "channel_add":
         storage.clear_state(user_id)
         ch = text.strip()
-        if not ch.startswith("@") and not ch.startswith("-"):
-            tg.send_message(chat_id, "❌ Kanal @username yoki ID ko'rinishida bo'lsin.")
+        # Har xil formatni qabul qilish: @username, t.me/username, https://t.me/username, -100xxx
+        if ch.startswith("https://t.me/"):
+            ch = "@" + ch.split("https://t.me/")[-1].split("/")[0]
+        elif ch.startswith("t.me/"):
+            ch = "@" + ch.split("t.me/")[-1].split("/")[0]
+        elif ch.startswith("@"):
+            pass  # allaqachon to'g'ri format
+        elif ch.startswith("-") and ch[1:].isdigit():
+            pass  # kanal ID
+        elif ch.isdigit():
+            ch = "@" + ch  # username without @
+        else:
+            tg.send_message(chat_id, "❌ Kanal @username, t.me/username yoki ID ko'rinishida bo'lsin.")
             return
         if ch not in storage.data.get("channels", []):
             storage.data.setdefault("channels", []).append(ch)
@@ -902,7 +951,8 @@ def handle_message(message):
         return
 
     if is_private:
-        tg.send_message(chat_id, "🤖 Tushunmadim. Bosh sahifa uchun /start bosing.")
+        lang = langs.get_user_lang(user_id)
+        tg.send_message(chat_id, langs.t("unknown_command", lang))
 
 
 def handle_photo(message):
@@ -1084,6 +1134,14 @@ def handle_callback(cq):
 
     if not is_subscribed(user_id):
         tg.answer_callback(cb_id, "❌ Avval kanallarga obuna bo'ling!", alert=True)
+        return
+
+    if cb.startswith("lang_"):
+        new_lang = cb.replace("lang_", "", 1)
+        if new_lang in langs.LANGS:
+            langs.set_user_lang(user_id, new_lang)
+            tg.send_message(chat_id, langs.t("lang_changed", new_lang))
+        tg.answer_callback(cb_id)
         return
 
     if cb == "cat_menu":
