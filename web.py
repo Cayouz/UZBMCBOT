@@ -130,6 +130,7 @@ def mod_json(mid, m, favs, lang="uz"):
         "category": m.get("category", "minecraft"),
         "category_name": cat_label(m.get("category", "minecraft")),
         "editions": storage.mod_editions(m),
+        "edition": m.get("edition") or [],
         "date": m.get("date", ""),
         "downloads": m.get("downloads", 0),
         "photos": ["/photo/%s/%d%s" % (
@@ -239,42 +240,48 @@ def _channel_ok(result):
     return bool(result.get("ok") or "message is not modified" in str(result.get("description") or "").lower())
 
 
-def publish_mod(mid):
+def publish_mod(mid, chat_ids=None):
     with _channel_lock:
         mod = storage.data.get("mods", {}).get(mid)
         if not mod or mod.get("hidden"):
             return False
+        targets = [str(c) for c in (chat_ids or [])] or [config.CHANNEL_ID]
         caption, keyboard = _channel_content(mid, mod)
         photos = storage.mod_photos(mod)
-        if photos:
-            photo = _channel_photo(photos[0])
-            if not photo:
-                return False
-            result = tg.send_photo(config.CHANNEL_ID, photo, caption, keyboard)
-        else:
-            result = tg.send_message(config.CHANNEL_ID, caption, keyboard)
-        message_id = (result.get("result") or {}).get("message_id")
-        if not result.get("ok") or not message_id:
-            return False
-        post = {"chat_id": config.CHANNEL_ID, "message_id": message_id,
-                "kind": "photo" if photos else "text", "extra_ids": []}
-        mod.setdefault("channel_posts", []).append(post)
+        all_ok = True
+        for chat_id in targets:
+            if photos:
+                photo = _channel_photo(photos[0])
+                if not photo:
+                    all_ok = False
+                    continue
+                result = tg.send_photo(chat_id, photo, caption, keyboard)
+            else:
+                result = tg.send_message(chat_id, caption, keyboard)
+            message_id = (result.get("result") or {}).get("message_id")
+            if not result.get("ok") or not message_id:
+                all_ok = False
+                continue
+            post = {"chat_id": chat_id, "message_id": message_id,
+                    "kind": "photo" if photos else "text", "extra_ids": []}
+            mod.setdefault("channel_posts", []).append(post)
+            storage.save_data()
+            extra = photos[1:]
+            if len(extra) == 1:
+                photo = _channel_photo(extra[0])
+                result = tg.send_photo(chat_id, photo) if photo else {"ok": False}
+                messages = [result.get("result") or {}] if result.get("ok") else []
+            elif extra:
+                result = tg.send_media_group(chat_id, extra)
+                messages = result.get("result") or [] if result.get("ok") else []
+            else:
+                messages = []
+            post["extra_ids"] = [message["message_id"] for message in messages if message.get("message_id")]
+            complete = len(post["extra_ids"]) == len(extra)
+            mod["channel_sync_error"] = mod.get("channel_sync_error", False) or not complete
+            all_ok = all_ok and complete
         storage.save_data()
-        extra = photos[1:]
-        if len(extra) == 1:
-            photo = _channel_photo(extra[0])
-            result = tg.send_photo(config.CHANNEL_ID, photo) if photo else {"ok": False}
-            messages = [result.get("result") or {}] if result.get("ok") else []
-        elif extra:
-            result = tg.send_media_group(config.CHANNEL_ID, extra)
-            messages = result.get("result") or [] if result.get("ok") else []
-        else:
-            messages = []
-        post["extra_ids"] = [message["message_id"] for message in messages if message.get("message_id")]
-        complete = len(post["extra_ids"]) == len(extra)
-        mod["channel_sync_error"] = not complete
-        storage.save_data()
-        return complete
+        return all_ok
 
 
 def sync_mod_posts(mid, media_changed=False):
@@ -1023,8 +1030,15 @@ class WebHandler(BaseHTTPRequestHandler):
             mid = str(payload.get("mod_id") or "")
             if mid not in storage.data.get("mods", {}):
                 return self._json({"ok": False, "error": "Mod topilmadi"}, 404)
-            ok = publish_mod(mid)
+            channels = payload.get("channels") or []
+            if isinstance(channels, str):
+                channels = [channels]
+            chat_ids = [str(c) for c in channels if str(c).strip()]
+            ok = publish_mod(mid, chat_ids or None)
             return self._json({"ok": bool(ok)})
+
+        if action == "bot_channels":
+            return self._json({"ok": True, "channels": storage.bot_channels()})
 
         if action == "broadcast":
             text = str(payload.get("text") or "").strip()
@@ -1033,14 +1047,26 @@ class WebHandler(BaseHTTPRequestHandler):
             import bot
             blocked = storage.data.get("blocked", {})
             total = len([u for u in storage.data.get("users", {}) if u not in blocked])
+            channels = payload.get("channels") or []
+            if isinstance(channels, str):
+                channels = [channels]
+            chat_ids = [str(c) for c in channels if str(c).strip()]
 
             def runner():
                 t, ok, fail = bot.broadcast_text(text)
+                ch_ok = 0
+                for cid in chat_ids:
+                    try:
+                        if tg.send_message(cid, "📢 <b>XABAR:</b>\n\n" + text).get("ok"):
+                            ch_ok += 1
+                    except Exception:
+                        pass
                 try:
+                    extra = ("\n📣 Kanallarga yuborildi: <b>%d</b>" % ch_ok) if chat_ids else ""
                     tg.send_message(user["id"],
                                     "📢 <b>Xabar tarqatish yakunlandi</b>\n\n"
                                     "👥 Jami: <b>%d</b>\n🟢 Yetib bordi: <b>%d</b>\n"
-                                    "🔴 Yetib bormadi: <b>%d</b>" % (t, ok, fail))
+                                    "🔴 Yetib bormadi: <b>%d</b>%s" % (t, ok, fail, extra))
                 except Exception:
                     pass
 
@@ -1152,6 +1178,11 @@ class WebHandler(BaseHTTPRequestHandler):
             if cat not in config.MOD_CATEGORY_IDS:
                 return self._json({"ok": False, "error": "Kategoriyani tanlang"}, 400)
             updates["category"] = cat
+        if "editions" in payload:
+            editions = payload.get("editions") or []
+            if isinstance(editions, str):
+                editions = [e.strip() for e in editions.split(",")]
+            updates["edition"] = [e for e in ("java", "bedrock") if e in editions]
         if "link" in payload:
             parts = urllib.parse.urlsplit(str(payload.get("link") or "").strip())
             link_id = (urllib.parse.parse_qs(parts.query).get("start") or [""])[0]
@@ -1242,6 +1273,10 @@ class WebHandler(BaseHTTPRequestHandler):
         cat = str(payload.get("category") or "minecraft")
         if cat not in config.MOD_CATEGORY_IDS:
             cat = "minecraft"
+        editions = payload.get("editions") or []
+        if isinstance(editions, str):
+            editions = [e.strip() for e in editions.split(",")]
+        editions = [e for e in ("java", "bedrock") if e in editions]
         if not name:
             return self._json({"ok": False, "error": "Mod nomini kiriting"}, 400)
         photos_in = [f for f in files if f["field"] == "photos" and f["content"]][
@@ -1305,6 +1340,7 @@ class WebHandler(BaseHTTPRequestHandler):
             "name": name,
             "description": desc,
             "category": cat,
+            "edition": editions,
             "photos": photos,
             "cover_file": photos[0]["path"] if photos else "",
             "cover_id": "",
@@ -1322,7 +1358,11 @@ class WebHandler(BaseHTTPRequestHandler):
 
         published = False
         if str(payload.get("publish") or "") in ("1", "true", "on"):
-            published = publish_mod(mod_id)
+            channels = payload.get("channels") or []
+            if isinstance(channels, str):
+                channels = [channels]
+            chat_ids = [str(c) for c in channels if str(c).strip()]
+            published = publish_mod(mod_id, chat_ids or None)
         return self._json({"ok": True, "mod": mod_json(mod_id, mod, set()), "published": published})
 
     def _persist_mod_media(self, mod_id, admin_id):

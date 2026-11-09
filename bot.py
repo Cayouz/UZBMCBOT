@@ -1105,9 +1105,16 @@ def handle_my_chat_member(upd):
     chat = upd.get("chat", {})
     new = upd.get("new_chat_member", {})
     status = new.get("status", "")
+    chat_id = chat.get("id")
+    if chat.get("type") == "channel":
+        if status in ("left", "kicked"):
+            storage.untrack_channel(chat_id)
+            return
+        ok = status in ("administrator", "creator")
+        storage.track_channel(chat, ok)
+        return
     if chat.get("type") not in ("group", "supergroup"):
         return
-    chat_id = chat.get("id")
     if status in ("left", "kicked"):
         storage.untrack_group(chat_id)
         _group_admin_cache.pop(str(chat_id), None)

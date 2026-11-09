@@ -41,6 +41,7 @@ def _default_data():
         "channels": [config.CHANNEL_ID] if config.CHANNEL_ID else [],
         "users": {},
         "groups": {},
+        "post_channels": {},
         "replies": {},
         "comments": {},
         "blocked": {},
@@ -483,6 +484,64 @@ def untrack_group(chat_id):
         save_data()
 
 
+def track_channel(chat, is_admin=None):
+    """Bot qaysi kanalga qo'shilganini (adminmi) kuzatish."""
+    if chat.get("type") != "channel":
+        return
+    cid = str(chat.get("id") or chat.get("username") or "")
+    if not cid:
+        return
+    title = chat.get("title") or chat.get("username") or "Kanal"
+    chans = data.setdefault("post_channels", {})
+    c = chans.get(cid)
+    if not c:
+        chans[cid] = {"title": title, "username": chat.get("username") or "",
+                      "date": _now(), "status": "active", "is_admin": bool(is_admin)}
+        save_data()
+        return
+    changed = False
+    if c.get("title") != title:
+        c["title"] = title
+        changed = True
+    if c.get("username") != (chat.get("username") or ""):
+        c["username"] = chat.get("username") or ""
+        changed = True
+    if c.get("status") != "active":
+        c["status"] = "active"
+        changed = True
+    if is_admin is not None and c.get("is_admin") != bool(is_admin):
+        c["is_admin"] = bool(is_admin)
+        changed = True
+    if changed:
+        save_data()
+
+
+def untrack_channel(chat_id):
+    cid = str(chat_id)
+    c = data.get("post_channels", {}).get(cid)
+    if c:
+        c["status"] = "removed"
+        c["is_admin"] = False
+        save_data()
+
+
+def bot_channels():
+    """Bot joylashishi mumkin bo'lgan kanallar (bot admin bo'lgan)."""
+    result = {}
+    for cid, c in data.get("post_channels", {}).items():
+        if c.get("status", "active") == "active" and c.get("is_admin"):
+            result[cid] = {"id": cid, "title": c.get("title", "Kanal")}
+    # Manual qo'shilgan obuna kanallari (channel_add da bot adminligi tekshirilgan)
+    for ch in data.get("channels", []):
+        key = str(ch)
+        if key not in result:
+            result[key] = {"id": key, "title": key.lstrip("@-0123456789") or key}
+    if config.CHANNEL_ID and str(config.CHANNEL_ID) not in result:
+        result[str(config.CHANNEL_ID)] = {"id": str(config.CHANNEL_ID),
+                                          "title": "@" + config.CHANNEL_USERNAME}
+    return list(result.values())
+
+
 # ---------------- STATES ----------------
 def get_state(user_id):
     return data.get("states", {}).get(str(user_id), {})
@@ -575,6 +634,9 @@ def find_mod_by_link(param):
 
 
 def mod_editions(mod):
+    explicit = mod.get("edition")
+    if explicit:
+        return [edition for edition in ("java", "bedrock") if edition in explicit]
     editions = set()
     for text in (mod.get("description") or "", mod.get("name") or ""):
         if re.search(r"\bjava\b", text, re.IGNORECASE):

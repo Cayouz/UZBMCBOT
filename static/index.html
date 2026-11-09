@@ -400,6 +400,7 @@ var state = {
   bot_username:"", support:"Cayouz", stats:null,
   invited_count:0, joined:"",
   tab:"mods", cat:"all", q:"", sort:"new", edition:"", mod:null, adminLoaded:false,
+  adminQ:"", postChannels:[],
   lang:"uz", font:"", unread:0
 };
 
@@ -503,6 +504,10 @@ quick:"⚡ Tezkor amallar", add_mod:"➕ Mod qo'shish", broadcast:"📢 Xabar ta
 admins_b:"👤 Adminlar", users_b:"👥 Jonli foydalanuvchilar", groups_b:"🌐 Guruhlar", backup_b:"💾 Zaxira olish",
 backup_note:"💾 Zaxira fayli bot orqali Telegram'ga yuboriladi va pin qilinadi.",
 manage_mods:"📦 Modlarni boshqarish", no_mods_admin:"Modlar yo'q. ➕ Mod qo'shish tugmasini bosing.",
+f_edition:"Minecraft turi", ed_java:"Java", ed_bedrock:"Bedrock", ed_hint:"Tanlamasangiz nom/tavsif/fayldan avtomatik aniqlanadi.",
+admin_search_ph:"Mod nomini yozib qidirish...", admin_no_result:"Bu nomda mod topilmadi.",
+ch_pick_t:"📢 Kanalga joylash", ch_pick_s:"Qaysi kanal(lar)ga joylashni tanlang:", ch_none:"Bot hech bir kanalga qo'shilmagan. Botni kanalga admin qilib qo'shing.", ch_all:"Barcha kanallar", ch_send:"📢 Joylash", ch_send_to:"kanal(lar)ga joylandi",
+bc_ch_label:"📣 Kanallar (ixtiyoriy)",
 live_groups_card:"🌐 Jonli guruhlar", admin_foot:"MODHUB Admin • faqat jonli ko'rsatkichlar",
 ask_t:"Tasdiqlash", cancel:"Bekor qilish", yes_go:"Ha, davom etish",
 add_mod_t:"➕ Yangi mod", f_name:"Mod nomi", name_ph:"Masalan: Super Cars Addon",
@@ -575,6 +580,10 @@ quick:"⚡ Quick actions", add_mod:"➕ Add mod", broadcast:"📢 Broadcast", ch
 admins_b:"👤 Admins", users_b:"👥 Live users", groups_b:"🌐 Groups", backup_b:"💾 Backup",
 backup_note:"💾 The backup file is sent to Telegram via the bot and pinned.",
 manage_mods:"📦 Manage mods", no_mods_admin:"No mods. Tap ➕ Add mod.",
+f_edition:"Minecraft edition", ed_java:"Java", ed_bedrock:"Bedrock", ed_hint:"If none selected, detected from name/description/file.",
+admin_search_ph:"Search mod by name...", admin_no_result:"No mods with this name.",
+ch_pick_t:"📢 Publish to channel", ch_pick_s:"Choose channel(s) to publish to:", ch_none:"Bot is not added to any channel. Add the bot as admin to a channel.", ch_all:"All channels", ch_send:"📢 Publish", ch_send_to:"channel(s) published",
+bc_ch_label:"📣 Channels (optional)",
 live_groups_card:"🌐 Live groups", admin_foot:"MODHUB Admin • live metrics only",
 ask_t:"Confirm", cancel:"Cancel", yes_go:"Yes, continue",
 add_mod_t:"➕ New mod", f_name:"Mod name", name_ph:"Example: Super Cars Addon",
@@ -647,6 +656,10 @@ quick:"⚡ Быстрые действия", add_mod:"➕ Добавить мо�
 admins_b:"👤 Админы", users_b:"👥 Живые пользователи", groups_b:"🌐 Группы", backup_b:"💾 Резервная копия",
 backup_note:"💾 Файл резервной копии отправляется в Telegram через бота и закрепляется.",
 manage_mods:"📦 Управление модами", no_mods_admin:"Модов нет. Нажмите ➕ Добавить мод.",
+f_edition:"Издание Minecraft", ed_java:"Java", ed_bedrock:"Bedrock", ed_hint:"Если не выбрать, определится из названия/описания/файла.",
+admin_search_ph:"Поиск мода по названию...", admin_no_result:"Модов с таким названием нет.",
+ch_pick_t:"📢 Опубликовать в канале", ch_pick_s:"Выберите канал(ы) для публикации:", ch_none:"Бот не добавлен ни в один канал. Добавьте бота админом в канал.", ch_all:"Все каналы", ch_send:"📢 Опубликовать", ch_send_to:"канал(ов) опубликовано",
+bc_ch_label:"📣 Каналы (необязательно)",
 live_groups_card:"🌐 Живые группы", admin_foot:"MODHUB Admin • только живые данные",
 ask_t:"Подтверждение", cancel:"Отмена", yes_go:"Да, продолжить",
 add_mod_t:"➕ Новый мод", f_name:"Название мода", name_ph:"Например: Super Cars Addon",
@@ -1242,6 +1255,7 @@ function renderAdmin(){
     '</div>' +
     '<div class="muted small" style="margin:-4px 2px 10px">' + T("backup_note") + '</div>' +
     '<div class="section-title"><h2>' + T("manage_mods") + '</h2><span class="count">' + state.mods.length + ' ' + T("ta") + '</span></div>' +
+    '<div class="field" style="margin-bottom:8px"><input id="adminModSearch" type="text" placeholder="' + T("admin_search_ph") + '" value="' + esc(state.adminQ) + '"></div>' +
     '<div class="card" id="adminMods">' + adminModsHTML() + '</div>' +
     (groups.length
       ? '<div class="card" style="margin-top:12px"><h3>' + T("live_groups_card") + ' (' + groups.length + ')</h3>' +
@@ -1254,7 +1268,13 @@ function renderAdmin(){
 }
 function adminModsHTML(){
   if(!state.mods.length) return '<div class="muted small" style="padding:6px 0">' + T("no_mods_admin") + '</div>';
-  return state.mods.map(function(m){
+  var q = (state.adminQ || "").trim().toLowerCase();
+  var list = q ? state.mods.filter(function(m){
+    return String(m.name || "").toLowerCase().indexOf(q) >= 0 ||
+      String(m.category_name || "").toLowerCase().indexOf(q) >= 0;
+  }) : state.mods;
+  if(!list.length) return '<div class="muted small" style="padding:6px 0">' + T("admin_no_result") + '</div>';
+  return list.map(function(m){
     var img = m.photos && m.photos.length
       ? '<img src="' + esc(m.photos[0]) + '" alt="">'
       : '<div class="mph">⛏️</div>';
@@ -1311,6 +1331,15 @@ function categoryOptions(selected){
       esc(c.icon + " " + c.name) + '</option>';
   }).join("");
 }
+function editionChecks(selected){
+  var sel = selected || [];
+  return '<div class="field"><label>' + T("f_edition") + '</label>' +
+    '<label class="checkline"><input type="checkbox" name="editions" value="java" ' +
+      (sel.indexOf("java")>=0?"checked":"") + '> ' + T("ed_java") + '</label>' +
+    '<label class="checkline"><input type="checkbox" name="editions" value="bedrock" ' +
+      (sel.indexOf("bedrock")>=0?"checked":"") + '> ' + T("ed_bedrock") + '</label>' +
+    '<div class="hint">' + T("ed_hint") + '</div></div>';
+}
 function openAddMod(){
   openModal('<div class="m-head"><h3>' + T("add_mod_t") + '</h3>' +
     '<button class="m-close" data-action="close-modal">✕</button></div>' +
@@ -1318,6 +1347,7 @@ function openAddMod(){
       '<div class="field"><label>' + T("f_name") + '</label><input name="name" type="text" required maxlength="120" placeholder="' + T("name_ph") + '"></div>' +
       '<div class="field"><label>' + T("f_desc") + '</label><textarea name="description" rows="3" maxlength="2000" placeholder="' + T("desc_ph") + '"></textarea></div>' +
       '<div class="field"><label>' + T("f_cat") + '</label><select name="category">' + categoryOptions("minecraft") + '</select></div>' +
+      editionChecks([]) +
       '<div class="field"><label>' + T("f_photos") + '</label>' +
         '<input class="file-in" id="modPhotos" type="file" name="photos" accept="image/*" multiple>' +
         '<div class="preview" id="photoPreview"></div>' +
@@ -1360,6 +1390,7 @@ function openEditMod(id){
         '<div class="field"><label>' + T("f_desc2") + '</label><textarea name="description" rows="4" maxlength="2000">' + esc(m.description) + '</textarea>' +
           '<div class="hint">' + T("edit_original") + '</div></div>' +
         '<div class="field"><label>' + T("f_cat2") + '</label><select name="category">' + categoryOptions(m.category) + '</select></div>' +
+        editionChecks(m.edition) +
         '<div class="field"><label>' + T("edit_photos") + '</label>' +
           '<div class="preview">' + m.photos.map(function(url){ return '<img src="' + esc(url) + '" alt="">'; }).join("") + '</div>' +
           '<input class="file-in" id="editModPhotos" type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>' +
@@ -1382,8 +1413,47 @@ function openBroadcast(){
   openModal('<div class="m-head"><h3>' + T("bc_t") + '</h3>' +
     '<button class="m-close" data-action="close-modal">✕</button></div>' +
     '<div class="field"><label>' + T("bc_label") + '</label><textarea id="bcText" rows="5" placeholder="' + T("bc_ph") + '"></textarea></div>' +
+    '<div id="bcChannels"></div>' +
     '<p class="hint" style="margin-bottom:12px">' + T("bc_hint") + '</p>' +
     '<button class="btn primary block" data-action="send-broadcast">🚀 ' + T("send").replace("🚀 ","") + '</button>');
+  loadPostChannels(function(chans){
+    var box = $("bcChannels");
+    if(!box || !chans.length) return;
+    box.innerHTML = '<div class="field"><label>' + T("bc_ch_label") + '</label>' +
+      chans.map(function(c){
+        return '<label class="checkline"><input type="checkbox" name="bcCh" value="' + esc(c.id) + '"> ' +
+          esc(c.title) + ' <span class="muted small">' + esc(c.id) + '</span></label>';
+      }).join("") + '</div>';
+  });
+}
+function loadPostChannels(cb){
+  if(state.postChannels && state.postChannels.length){ cb(state.postChannels); return; }
+  api("/api/admin/bot_channels").then(function(r){
+    state.postChannels = (r && r.channels) || [];
+    cb(state.postChannels);
+  }).catch(function(){ cb([]); });
+}
+function openChannelPicker(id){
+  openModal('<div class="m-head"><h3>' + T("ch_pick_t") + '</h3>' +
+    '<button class="m-close" data-action="close-modal">✕</button></div>' +
+    '<p id="chPickLoading" class="muted">' + T("loading") + '</p>');
+  loadPostChannels(function(chans){
+    if(!modalWrap.classList.contains("open")) return;
+    if(!chans.length){
+      openModal('<div class="m-head"><h3>' + T("ch_pick_t") + '</h3>' +
+        '<button class="m-close" data-action="close-modal">✕</button></div>' +
+        '<p class="muted" style="padding:8px 0">' + T("ch_none") + '</p>');
+      return;
+    }
+    openModal('<div class="m-head"><h3>' + T("ch_pick_t") + '</h3>' +
+      '<button class="m-close" data-action="close-modal">✕</button></div>' +
+      '<p class="muted small" style="margin-bottom:8px">' + T("ch_pick_s") + '</p>' +
+      '<div class="field">' + chans.map(function(c){
+        return '<label class="checkline"><input type="checkbox" name="pubCh" value="' + esc(c.id) + '" checked> ' +
+          esc(c.title) + ' <span class="muted small">' + esc(c.id) + '</span></label>';
+      }).join("") + '</div>' +
+      '<button class="btn primary block" data-action="publish-confirm" data-id="' + esc(id) + '">' + T("ch_send") + '</button>');
+  });
 }
 function openChannels(){
   var chans = state.channels || [];
@@ -1558,6 +1628,8 @@ function submitModForm(form, allowDuplicate){
   if(allowDuplicate) fd.set("allow_duplicate", "1");
   if(form.elements.files.files.length) fd.delete("file_link");
   if(!form.publish.checked) fd.delete("publish"); else fd.set("publish", "1");
+  var eds = Array.prototype.slice.call(form.querySelectorAll('input[name="editions"]:checked')).map(function(i){ return i.value; });
+  fd.set("editions", eds.join(","));
   apiForm("/api/admin/mod_add", fd).then(function(r){
     if(!r.ok){
       if(r.duplicates && warning){
@@ -1613,6 +1685,8 @@ function submitEditForm(form, confirmed, allowDuplicate){
   var id = form.dataset.id;
   var fd = new FormData(form);
   fd.set("mod_id", id);
+  var eds = Array.prototype.slice.call(form.querySelectorAll('input[name="editions"]:checked')).map(function(i){ return i.value; });
+  fd.set("editions", eds.join(","));
   if(confirmed) fd.set("confirm_replace", "1");
   if(allowDuplicate) fd.set("allow_duplicate", "1");
   var btn = $("editModBtn");
@@ -1814,19 +1888,26 @@ function handleAction(a, el){
       });
       break;
     }
-    case "publish-mod": {
-      api("/api/admin/mod_publish", {mod_id:el.dataset.id}).then(function(r){
-        if(r.ok){ haptic("ok"); toast(T("publish_ok")); }
+    case "publish-mod": openChannelPicker(el.dataset.id); break;
+    case "publish-confirm": {
+      var picked = Array.prototype.slice.call(modalWrap.querySelectorAll('input[name="pubCh"]:checked')).map(function(i){ return i.value; });
+      if(!picked.length){ toast(T("ch_none"), true); break; }
+      var pid = el.dataset.id;
+      el.disabled = true; el.innerHTML = '<span class="spinner"></span> ' + T("loading");
+      api("/api/admin/mod_publish", {mod_id:pid, channels:picked}).then(function(r){
+        el.disabled = false; el.textContent = T("ch_send");
+        if(r.ok){ closeModal(); haptic("ok"); toast(T("publish_ok")); }
         else toast(r.error || T("publish_fail"), true);
-      });
+      }).catch(function(){ el.disabled = false; el.textContent = T("ch_send"); toast(T("net_err"), true); });
       break;
     }
     case "broadcast": openBroadcast(); break;
     case "send-broadcast": {
       var bt = $("bcText");
       if(!bt || !bt.value.trim()) return;
+      var bcCh = Array.prototype.slice.call(modalWrap.querySelectorAll('input[name="bcCh"]:checked')).map(function(i){ return i.value; });
       el.disabled = true; el.innerHTML = '<span class="spinner"></span> ' + T("sending2");
-      api("/api/admin/broadcast", {text:bt.value.trim()}).then(function(r){
+      api("/api/admin/broadcast", {text:bt.value.trim(), channels:bcCh}).then(function(r){
         if(r.ok){
           closeModal();
           toast("🚀 " + fmt(r.total) + " " + T("bc_started"));
@@ -1967,6 +2048,11 @@ document.addEventListener("input", function(e){
   if(e.target.id === "modSearch"){
     state.q = e.target.value.trim().toLowerCase();
     renderModGrid();
+  }
+  if(e.target.id === "adminModSearch"){
+    state.adminQ = e.target.value;
+    var box = $("adminMods");
+    if(box) box.innerHTML = adminModsHTML();
   }
   if(e.target.id === "userSearch"){
     loadUsers(e.target.value.trim());
